@@ -3,3 +3,7 @@ dist/
 .DS_Store
 *.local
 .vite/
+
+# local dev harnesses (container-specific browser paths)
+.shot.mjs
+.measure.mjs

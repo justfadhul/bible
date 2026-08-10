@@ -1,1 +1,126 @@
 @import 'tailwindcss';
+
+/*
+ * Quiet and typographic — a well-set print devotional, not a game show.
+ * The ground is deep and slightly desaturated so the catalog's own category
+ * colours do all the accent work. No gradients, no shadows, no confetti.
+ *
+ * Fonts are system stacks on purpose: nothing is fetched over the network, so
+ * the app opens instantly and works offline on a phone at 7am.
+ */
+@theme {
+  --color-ground: #14161a;
+  --color-ground-2: #191c22;
+  --color-surface: #1e222a;
+  --color-surface-2: #252a33;
+  --color-line: #2f3540;
+  --color-line-soft: #262b34;
+
+  --color-ink: #ece6da;
+  --color-ink-2: #b3ab9c;
+  --color-ink-3: #7d7768;
+  --color-ink-4: #565247;
+
+  --color-accent: #d9c9a3;
+
+  --font-serif: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Palatino, Georgia,
+    'Times New Roman', serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, sans-serif;
+
+  --text-2xs: 0.6875rem;
+}
+
+html {
+  background: var(--color-ground);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-ground);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* Home-screen / notched phones: keep content clear of the system UI. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+  overscroll-behavior-y: none;
+}
+
+/* Focus that is visible on every surface without being loud. */
+:where(a, button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Small caps-ish label used for section headers and metadata. */
+.eyebrow {
+  font-size: var(--text-2xs);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-ink-3);
+  font-weight: 600;
+}
+
+/* Visible only to screen readers. */
+.sr-only-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The reveal: a page turning, not a jackpot. */
+@keyframes page-turn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.reveal {
+  animation: page-turn 460ms cubic-bezier(0.16, 0.84, 0.34, 1) both;
+}
+.reveal-delay-1 { animation-delay: 90ms; }
+.reveal-delay-2 { animation-delay: 180ms; }
+.reveal-delay-3 { animation-delay: 270ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .reveal-delay-1,
+  .reveal-delay-2,
+  .reveal-delay-3 {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Textareas and inputs inherit the ground rather than the browser's chrome. */
+textarea,
+input[type='text'],
+input[type='search'] {
+  font-family: inherit;
+  color: inherit;
+  background: transparent;
+}
+
+textarea {
+  field-sizing: content;
+}
