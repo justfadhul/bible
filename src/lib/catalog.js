@@ -6,7 +6,9 @@
  * indexes. Every topic, reference, hook, question and colour the app shows
  * comes from here at runtime.
  */
-import raw from '../../bible-wheel-catalog.json'
+// The import attribute lets plain Node load this module too, so
+// scripts/simulate-spins.mjs exercises the real app code rather than a copy.
+import raw from '../../bible-wheel-catalog.json' with { type: 'json' }
 
 const SIZES = new Set(['short', 'medium', 'long'])
 const TESTAMENTS = new Set(['OT', 'NT'])
