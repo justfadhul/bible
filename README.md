@@ -129,7 +129,8 @@ security. The service-role key bypasses RLS entirely and must never appear in
 `.env`, in the bundle, or in this repo.
 
 **Run the migration once**: open Supabase → SQL Editor → New query, paste
-`supabase/migrations/0001_shared_history.sql`, Run. It is idempotent.
+`supabase/migrations/0001_shared_history.sql`, Run. It is idempotent, so re-running after a change
+to the file is safe and only replaces what moved.
 
 Then, in Settings → Sharing: each of you signs in with a magic link, one
 creates a shared history and reads out the eight-character invite code, the
@@ -223,6 +224,16 @@ These are measured, not assumed — see the audit results below.
 | No duplicated content | 26 source files scanned against 1,179 catalog strings — clean |
 | Unit tests | 101 passing |
 | Simulation | 200 playthroughs × 286 spins = 57,200 spins; every run produced all 286 entries with zero repeats; the 287th spin returned the completion state every time; 725,735 dead-segment checks and 114,400 landing checks all held |
+
+Verified against a live project, with three throwaway accounts driven through the anon key exactly
+as the app does — so RLS is genuinely under test rather than bypassed by a service key (22/22):
+
+- Two accounts pair with an invite code, and both `my_pair()` calls agree on the group.
+- One writes a reading; the other reads it back, `read_by` array and jsonb roster intact.
+- **A third signed-in account sees zero readings, cannot write into the group, and cannot list
+  `pairs` at all** — so invite codes cannot be harvested by enumeration.
+- A signed-out client sees nothing and cannot read invite codes.
+- Leaving revokes access immediately.
 
 Browser checks (Chromium at 380px), all passing:
 

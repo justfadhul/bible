@@ -181,6 +181,17 @@ function describe(e) {
   if (/Could not find the table/i.test(msg)) {
     return 'The database tables are missing — run supabase/migrations/0001_shared_history.sql in the SQL editor.'
   }
-  if (/Failed to fetch|NetworkError/i.test(msg)) return 'Cannot reach Supabase. Your history is still saved on this device.'
+  if (/Failed to fetch|NetworkError|fetch failed/i.test(msg)) {
+    return 'Cannot reach Supabase. Your history is still saved on this device.'
+  }
+  // The message the function raised is the useful part; match on it rather
+  // than the status, so an older migration still reads properly.
+  if (/no group has that code|no pair with that code/i.test(msg)) {
+    return 'No group has that code. Check it and try again.'
+  }
+  if (/already has eight readers|group is full/i.test(msg)) return 'That group already has eight readers.'
+  if (/JWT|not signed in|sign in first/i.test(msg)) return 'That session has expired. Sign in again.'
   return msg
 }
+
+export { describe as describeSyncError }

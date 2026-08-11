@@ -6,6 +6,8 @@
  */
 import { useState } from 'react'
 import { Alert, Badge, Button, Card, Field, Icon, ICONS } from './ui.jsx'
+import { describeSyncError } from '../hooks/useSync.js'
+import * as haptics from '../lib/haptics.js'
 
 const STATUS_TEXT = {
   off: 'Not configured on this build.',
@@ -52,7 +54,8 @@ export default function Sharing({ sync }) {
     try {
       await fn()
     } catch (e) {
-      setLocalError(e?.message ?? String(e))
+      haptics.error()
+      setLocalError(describeSyncError(e))
     } finally {
       setBusy(false)
     }
@@ -124,7 +127,7 @@ export default function Sharing({ sync }) {
           <div className="space-y-4">
             <div>
               <p className="text-sm leading-relaxed text-ink-2">
-                Start a shared history and send the code to the other reader, or enter theirs.
+                Start a shared history and send the code to the others, or enter one you have been given.
               </p>
               <Button
                 className="mt-3 w-full"
@@ -191,8 +194,8 @@ export default function Sharing({ sync }) {
         header="Sharing"
         footer={
           waiting
-            ? 'Give this code to the other reader. They sign in on their own device and enter it once.'
-            : 'Both devices read and write the same history. Changes appear on the other phone without a refresh.'
+            ? 'Give this code to the others. Each signs in on their own device and enters it once.'
+            : 'Every device reads and writes the same history. Changes appear on the others without a refresh.'
         }
       >
         <div className="flex items-start justify-between gap-3">
@@ -212,8 +215,11 @@ export default function Sharing({ sync }) {
           <Badge tone={sync.status === 'error' ? 'neutral' : 'accent'}>
             {STATUS_TEXT[sync.status] ?? sync.status}
           </Badge>
-          <Badge>{waiting ? 'Waiting for the second reader' : 'Two readers'}</Badge>
-          <Badge>You are reader {String(sync.pair.slot ?? 'a').toUpperCase()}</Badge>
+          <Badge>
+            {waiting
+              ? 'Waiting for the second reader'
+              : `${sync.pair.member_count} readers signed in`}
+          </Badge>
         </div>
 
         {sync.error && (

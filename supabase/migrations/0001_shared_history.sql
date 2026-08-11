@@ -21,6 +21,10 @@
 --  SECURITY DEFINER function rather than a SELECT policy — the codes table is
 --  never directly readable, which means codes cannot be enumerated or brute
 --  forced by listing.
+--
+--  Error codes use PostgREST's PTnnn convention so a mistyped invite code
+--  arrives at the client as a 404 with a readable message, rather than as a
+--  generic 500.
 -- ═══════════════════════════════════════════════════════════════════════════
 
 create extension if not exists pgcrypto;
@@ -156,7 +160,7 @@ declare
   v_pair public.pairs;
 begin
   if auth.uid() is null then
-    raise exception 'not signed in' using errcode = '28000';
+    raise exception 'Sign in first.' using errcode = 'PT401';
   end if;
 
   insert into public.pairs (invite_code)
@@ -188,7 +192,7 @@ declare
   v_count   integer;
 begin
   if auth.uid() is null then
-    raise exception 'not signed in' using errcode = '28000';
+    raise exception 'Sign in first.' using errcode = 'PT401';
   end if;
 
   select id into v_pair_id
@@ -196,7 +200,7 @@ begin
   where invite_code = upper(trim(p_code));
 
   if v_pair_id is null then
-    raise exception 'no pair with that code' using errcode = 'P0002';
+    raise exception 'No group has that code. Check it and try again.' using errcode = 'PT404';
   end if;
 
   -- Already in it: joining again is a no-op rather than an error.
@@ -207,7 +211,7 @@ begin
 
   select count(*) into v_count from public.pair_members m where m.pair_id = v_pair_id;
   if v_count >= 8 then
-    raise exception 'that group is full' using errcode = 'P0001';
+    raise exception 'That group already has eight readers.' using errcode = 'PT409';
   end if;
 
   insert into public.pair_members (pair_id, user_id) values (v_pair_id, auth.uid());
