@@ -421,7 +421,12 @@ export default function App() {
             </Card>
           ))}
 
-        {view === 'finished' && <FinishedSide state={state} />}
+        {view === 'finished' && (
+          <FinishedSide
+            state={state}
+            onReadBy={(entryId, readerId, value) => commit(setReadBy(state, entryId, readerId, value))}
+          />
+        )}
       </main>
     </div>
   )

@@ -96,7 +96,11 @@ export function Button({
           // Disabled is flat, not inset: inset means a container, and a
           // dead control should not look like somewhere to type.
           boxShadow: props.disabled ? 'none' : 'var(--e3)',
-          transition: 'box-shadow .24s var(--ease), transform .24s var(--ease), background-color .24s var(--ease)',
+          // Colour has to travel with the background, or for a quarter of a
+          // second after the button becomes usable the label is accent ink on
+          // an inset ground — which is unreadable, and measurably so.
+          transition:
+            'box-shadow .24s var(--ease), transform .24s var(--ease), background-color .24s var(--ease), color .24s var(--ease)',
         }
       : undefined
 

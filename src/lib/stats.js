@@ -63,6 +63,71 @@ export function categoryProgress(completedIdSet) {
   })
 }
 
+/**
+ * Who has read what, category by category.
+ *
+ * Two different numbers get confused here, so they are kept apart deliberately:
+ *
+ *   drawn  — how many of a category's passages the wheel has produced at all.
+ *            Shared by everyone; nobody controls it.
+ *   read   — how many of those a particular reader has ticked.
+ *
+ * A reader's score is out of `drawn`, never out of the category total, because
+ * nobody can read what has not come up yet. Scoring against the total would
+ * make somebody who has read every single passage they were given look like
+ * they were 20% through, which is both wrong and discouraging.
+ *
+ * Passages the wheel has not drawn are counted but not listed. The premise of
+ * the app is that the wheel chooses; a browsable list of what is still to come
+ * quietly replaces that with a menu.
+ */
+export function readerProgress(state) {
+  const readers = state.readers ?? []
+  const rowById = new Map(state.completed.map((r) => [r.id, r]))
+  const totals = Object.fromEntries(readers.map((r) => [r.id, 0]))
+  let drawnTotal = 0
+
+  const categories = CATEGORIES.map((c) => {
+    const all = ENTRIES_BY_CATEGORY.get(c.id) ?? []
+    const perReader = Object.fromEntries(readers.map((r) => [r.id, 0]))
+    const topics = []
+
+    for (const e of all) {
+      const row = rowById.get(e.id)
+      if (!row) continue
+      const readBy = row.readBy ?? []
+      for (const id of readBy) {
+        if (id in perReader) perReader[id] += 1
+        if (id in totals) totals[id] += 1
+      }
+      topics.push({
+        id: e.id,
+        topic: e.topic,
+        reference: e.reference,
+        dateISO: row.dateISO,
+        readBy,
+        hasNotes: Boolean(row.notes?.trim()),
+      })
+    }
+
+    topics.sort((a, b) => (a.dateISO === b.dateISO ? a.id - b.id : a.dateISO < b.dateISO ? 1 : -1))
+    drawnTotal += topics.length
+
+    return {
+      id: c.id,
+      name: c.name,
+      color: c.color,
+      total: all.length,
+      drawn: topics.length,
+      undrawn: all.length - topics.length,
+      perReader,
+      topics,
+    }
+  })
+
+  return { readers, categories, totals, drawnTotal }
+}
+
 /** Everything the archive header needs, in one pass. */
 export function archiveStats(state) {
   const ids = new Set(state.completed.map((r) => r.id))

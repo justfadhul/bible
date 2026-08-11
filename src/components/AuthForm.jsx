@@ -91,7 +91,7 @@ function PasswordField({ id, label, value, onChange, hint, error, autoComplete, 
               />
             ))}
           </span>
-          <span className={`text-xs ${ok ? 'text-ink-2' : 'text-ink-2'}`}>
+          <span className="text-xs text-ink-2">
             {value.length === 0
               ? `${MIN_PASSWORD} characters or more`
               : ok
@@ -353,7 +353,7 @@ export default function AuthForm({ sync, size = 'md' }) {
             <Button variant="quiet" size="sm" onClick={() => go('signup')}>
               Create an account
             </Button>
-            <span aria-hidden="true" className="text-ink-3">
+            <span aria-hidden="true" className="text-ink-2">
               ·
             </span>
             <Button variant="quiet" size="sm" onClick={() => go('forgot')}>

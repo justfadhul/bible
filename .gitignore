@@ -28,3 +28,5 @@ dist/
 .auth.mjs
 .plate.mjs
 .code.mjs
+.prog.mjs
+.dbg2.mjs

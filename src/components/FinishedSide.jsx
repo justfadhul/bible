@@ -7,9 +7,10 @@
  */
 import { useMemo, useState } from 'react'
 import { AvatarStack, Card, EmptyState, Field, Icon, ICONS, Inset, Segmented } from './ui.jsx'
+import SharedProgress from './SharedProgress.jsx'
 import { CATEGORIES, TOTAL, getEntry, getCategory } from '../lib/catalog.js'
 import { formatShortDate } from '../lib/date.js'
-import { archiveStats } from '../lib/stats.js'
+import { archiveStats, readerProgress } from '../lib/stats.js'
 import { byNewest } from '../lib/state.js'
 import { readableInk } from '../lib/wheel.js'
 import { useMediaQuery } from '../hooks/useMedia.js'
@@ -31,9 +32,8 @@ function CategoryChart({ rows }) {
   // "how far through this category are we" — comparable across all fifteen.
   return (
     <Card className="px-4 py-4">
-      <p className="eyebrow">Completion by category</p>
       <Inset
-        className="mt-3 flex h-28 items-end gap-1.5 p-1.5"
+        className="flex h-28 items-end gap-1.5 p-1.5"
         role="img"
         aria-label={rows.map((r) => `${r.name}: ${r.read} of ${r.total}`).join('. ')}
       >
@@ -121,8 +121,9 @@ function Row({ row, readers, ground, last }) {
   )
 }
 
-export default function FinishedSide({ state }) {
+export default function FinishedSide({ state, onReadBy }) {
   const [query, setQuery] = useState('')
+  const [lens, setLens] = useState('readers')
   const [category, setCategory] = useState('all')
   const [testament, setTestament] = useState('all')
 
@@ -135,6 +136,7 @@ export default function FinishedSide({ state }) {
 
   const stats = useMemo(() => archiveStats(state), [state])
   const rows = useMemo(() => byNewest(state), [state])
+  const progress = useMemo(() => readerProgress(state), [state])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -165,7 +167,35 @@ export default function FinishedSide({ state }) {
         <Stat value={stats.withNotes} label="with notes" sub={`of ${stats.read || 0}`} />
       </div>
 
-      <CategoryChart rows={stats.perCategory} />
+      {/* Two ways of asking the same question. The wheel's coverage is one
+          shape for everybody; who has kept up with it is a different question
+          entirely, and only worth asking once there is more than one of you. */}
+      <section>
+        <div className="mb-2 flex items-center justify-between gap-3 px-1">
+          <h2 className="eyebrow">Progress by category</h2>
+        </div>
+        {state.readers.length > 1 ? (
+          <>
+            <Segmented
+              label="Progress view"
+              value={lens}
+              onChange={setLens}
+              className="mb-2.5"
+              options={[
+                { value: 'readers', label: 'Who has read' },
+                { value: 'catalog', label: 'The catalog' },
+              ]}
+            />
+            {lens === 'readers' ? (
+              <SharedProgress progress={progress} onReadBy={onReadBy} />
+            ) : (
+              <CategoryChart rows={stats.perCategory} />
+            )}
+          </>
+        ) : (
+          <CategoryChart rows={stats.perCategory} />
+        )}
+      </section>
 
       {/* ── filters ── */}
       <div className="space-y-2.5">
