@@ -4,6 +4,11 @@ Everything Vercel needs is already in the repo — `vercel.json` sets the framew
 rewrite, cache headers and a content security policy. What is left is three settings and one
 Supabase change that is easy to miss.
 
+> **A note on `vercel.json`:** Vercel validates it strictly and **rejects any property it does
+> not recognise**, rather than ignoring it. JSON has nowhere to put a comment, so the temptation
+> to add a `"comment"` key is real — and it fails the build outright. That is what the
+> explanations below are for, and `npm run check-deploy` is a tripwire against it.
+
 > **Why you and not me:** this build environment's network policy blocks `api.vercel.com`
 > outright (403 at the proxy on CONNECT), so a deploy cannot be driven from here regardless of
 > credentials. Everything below is a couple of minutes.
@@ -82,10 +87,19 @@ If step 3 returns you signed out, it is almost always step 3 above — the redir
 **Custom domain.** Settings → Domains. Add the domain to Supabase's redirect list too, or you
 will reintroduce the same problem.
 
-**The CSP** in `vercel.json` allows connections to `*.supabase.co` and nothing else, and permits
-images from `data:`, `blob:` and Supabase Storage — that covers locally-chosen avatars and
-uploaded ones. If you add any third-party script or font, it will be blocked until you widen
-`connect-src` / `script-src` deliberately.
+**What is in `vercel.json`, and why.** Since the file cannot carry its own comments:
+
+| Setting | Reason |
+|---|---|
+| rewrite everything except `assets/`, `favicon`, `manifest`, `robots` → `/index.html` | Single-page app. A magic-link return, a refresh or a deep link would otherwise 404. |
+| `assets/*` immutable for a year | The filenames are content-hashed, so they can never go stale. |
+| `index.html` `must-revalidate` | Otherwise a deploy strands people on the previous bundle. |
+| CSP `connect-src` limited to `*.supabase.co` plus `wss:` | The app talks to exactly one host. Realtime needs the websocket scheme spelled out separately. |
+| CSP `img-src` allows `data:` and `blob:` | Locally-chosen avatars before upload. |
+| `nosniff`, `SAMEORIGIN`, `strict-origin-when-cross-origin` | Ordinary hardening. |
+
+If you add any third-party script or font it will be blocked until you widen `script-src` /
+`font-src` deliberately.
 
 **Caching.** Hashed assets are immutable for a year; `index.html` is `must-revalidate`, so a
 deploy takes effect on the next load rather than stranding people on an old bundle.

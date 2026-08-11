@@ -5,14 +5,12 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "comment": "Single-page app: every path serves index.html so a magic-link return, a refresh or a deep link all boot the app instead of 404ing.",
       "source": "/((?!assets/|favicon|apple-touch-icon|manifest|robots).*)",
       "destination": "/index.html"
     }
   ],
   "headers": [
     {
-      "comment": "Hashed build output is immutable; the HTML must never be cached or a deploy leaves people on the old bundle.",
       "source": "/assets/(.*)",
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
     },
@@ -27,7 +25,6 @@
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
         { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
         {
-          "comment": "The app talks to exactly one host — its own Supabase project — so the connect list is that and nothing else. Everything else is self-hosted: no CDN fonts, no analytics, no third-party scripts.",
           "key": "Content-Security-Policy",
           "value": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co; font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
         }
