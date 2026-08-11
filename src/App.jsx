@@ -2,15 +2,17 @@
  * The Spin Catalog.
  *
  * Three views and a settings panel — that is a useState, not a router.
- * App owns persisted state, the once-a-day lock, and the 60-second undo
- * window; the views below are otherwise self-contained.
+ * App owns persisted state, appearance, the once-a-day lock, and the
+ * 60-second undo window; the views below are otherwise self-contained.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import WheelView from './components/WheelView.jsx'
 import TodayCard from './components/TodayCard.jsx'
 import FinishedSide from './components/FinishedSide.jsx'
 import Settings from './components/Settings.jsx'
+import { Alert, Button, Card, Icon, ICONS, Tabs } from './components/ui.jsx'
 import { getState, saveState, clearState, emptyState } from './lib/storage.js'
+import { getTheme, saveTheme, applyTheme, resolvedTheme } from './lib/theme.js'
 import {
   completedIds as idsOf,
   isExhausted,
@@ -41,6 +43,23 @@ const TABS = [
   ['finished', 'Finished'],
 ]
 
+/** A raised circular control, per the system's iconography rules. */
+function IconButton({ label, onClick, active, path, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      aria-pressed={active}
+      className={`raised-2 grid size-11 shrink-0 place-items-center rounded-r5
+                  ${active ? 'text-accent' : 'text-ink-2'}`}
+      style={active ? { boxShadow: 'var(--inset)' } : undefined}
+    >
+      {children ?? <Icon path={path} size={20} />}
+    </button>
+  )
+}
+
 export default function App() {
   const [state, setStateRaw] = useState(getState)
   const [view, setView] = useState('wheel')
@@ -50,7 +69,18 @@ export default function App() {
   const [undo, setUndo] = useState(null) // { entryId, previousLastSpinDate, expiresAt }
   const [now, setNow] = useState(() => Date.now())
   const [dev, setDev] = useState(DEV_PARAM)
+  const [theme, setThemeRaw] = useState(getTheme)
   const mainRef = useRef(null)
+
+  const setTheme = useCallback((next) => {
+    setThemeRaw(next)
+    saveTheme(next)
+    applyTheme(next)
+  }, [])
+
+  useEffect(() => {
+    applyTheme(theme)
+  }, [theme])
 
   useEffect(() => {
     const onKey = (e) => {
@@ -133,7 +163,6 @@ export default function App() {
     return secondsLeft > 0 ? { secondsLeft } : null
   }, [undo, todayRow, now])
 
-  // Views scroll independently; reset to the top on a switch.
   useEffect(() => {
     mainRef.current?.scrollTo?.({ top: 0 })
     window.scrollTo({ top: 0 })
@@ -155,71 +184,90 @@ export default function App() {
     />
   ) : null
 
+  const isDark = resolvedTheme(theme) === 'dark'
+
   return (
-    <div className="min-h-dvh flex flex-col">
-      {/* Result announcements for screen readers. */}
+    <div className="flex min-h-dvh flex-col bg-ground">
       <p aria-live="polite" aria-atomic="true" className="sr-only-live">
         {announcement}
       </p>
 
-      <header className="sticky top-0 z-10 bg-ground/95 backdrop-blur-sm border-b border-line-soft">
-        <div className="mx-auto max-w-lg px-4 py-3 flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={() => setView('wheel')}
-            className="font-serif text-base text-ink tracking-tight text-left min-h-11 flex items-center"
+      <header
+        className="sticky top-0 z-20 bg-ground/92 backdrop-blur-md"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
+        <div className="mx-auto flex max-w-lg items-center gap-3 px-4 pt-3 pb-2">
+          <h1 className="flex-1 font-serif text-xl font-semibold tracking-[-0.01em]">The Spin Catalog</h1>
+          <IconButton
+            label={`Switch to ${isDark ? 'light' : 'dark'} appearance`}
+            onClick={() => setTheme(isDark ? 'light' : 'dark')}
           >
-            The Spin Catalog
-          </button>
-          <button
-            type="button"
-            onClick={() => setView(view === 'settings' ? 'wheel' : 'settings')}
-            aria-label={view === 'settings' ? 'Close settings' : 'Open settings'}
-            aria-pressed={view === 'settings'}
-            className={`size-11 -mr-2 grid place-items-center rounded-full transition-colors ${
-              view === 'settings' ? 'text-ink bg-surface' : 'text-ink-3 hover:text-ink'
-            }`}
-          >
-            <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-              <circle cx="12" cy="12" r="3.2" />
-              <path d="M12 2.8v2.4M12 18.8v2.4M4.5 4.5l1.7 1.7M17.8 17.8l1.7 1.7M2.8 12h2.4M18.8 12h2.4M4.5 19.5l1.7-1.7M17.8 6.2l1.7-1.7" strokeLinecap="round" />
+            {/* The sun's rays retract as the crescent closes over it, so the
+                control reads as one object changing rather than two icons. */}
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
+              <mask id="moon-cut">
+                <rect width="24" height="24" fill="#fff" />
+                <circle cx={isDark ? 17.5 : 28} cy={isDark ? 6.5 : 0} r="7.6" fill="#000" style={{ transition: 'cx .5s var(--ease), cy .5s var(--ease)' }} />
+              </mask>
+              <circle
+                cx="12"
+                cy="12"
+                r={isDark ? 8.6 : 4.9}
+                fill="currentColor"
+                mask="url(#moon-cut)"
+                style={{ transition: 'r .5s var(--ease)' }}
+              />
+              <g
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                style={{
+                  opacity: isDark ? 0 : 1,
+                  transform: `rotate(${isDark ? -45 : 0}deg)`,
+                  transformOrigin: 'center',
+                  transition: 'opacity .35s var(--ease), transform .5s var(--ease)',
+                }}
+              >
+                <path d="M12 1.9v2.2M12 19.9v2.2M22.1 12h-2.2M4.1 12H1.9M19.14 4.86l-1.56 1.56M6.42 17.58l-1.56 1.56M19.14 19.14l-1.56-1.56M6.42 6.42 4.86 4.86" />
+              </g>
             </svg>
-          </button>
+          </IconButton>
+          <IconButton
+            label={view === 'settings' ? 'Close settings' : 'Settings'}
+            active={view === 'settings'}
+            path={ICONS.gear}
+            onClick={() => setView(view === 'settings' ? 'wheel' : 'settings')}
+          />
         </div>
 
-        <nav className="mx-auto max-w-lg px-4 pb-2 flex gap-1" aria-label="Views">
-          {TABS.map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setView(id)}
-              aria-current={view === id ? 'page' : undefined}
-              className={`min-h-11 px-4 rounded-full text-sm transition-colors ${
-                view === id ? 'bg-surface text-ink' : 'text-ink-3 hover:text-ink-2'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </nav>
+        <div className="mx-auto max-w-lg px-4">
+          <Tabs tabs={TABS} value={view} onChange={setView} label="Views" />
+        </div>
       </header>
 
-      <main ref={mainRef} className="flex-1 mx-auto w-full max-w-lg px-4 py-6 pb-16">
+      <main ref={mainRef} className="mx-auto w-full max-w-lg flex-1 px-4 pt-5 pb-14">
         {dev && (
-          <p className="mb-4 rounded-lg border border-warn-line bg-warn-bg p-2.5 text-2xs text-warn">
-            Dev mode — the once-a-day lock is off, so you can spin repeatedly. Press Shift+Alt+D (or drop <code>?dev=1</code>) to restore it.
-          </p>
+          <div className="mb-5">
+            <Alert icon={ICONS.warning}>
+              <span className="font-semibold">Dev mode.</span> The once-a-day lock is off, so you can spin
+              repeatedly. Press Shift+Alt+D to restore it.
+            </Alert>
+          </div>
         )}
 
         {catalogProblems.length > 0 && (
-          <p className="mb-4 rounded-lg border border-warn-line bg-warn-bg p-2.5 text-2xs text-warn">
-            The catalog has {catalogProblems.length} problem(s); affected entries were skipped.
-          </p>
+          <div className="mb-5">
+            <Alert icon={ICONS.warning} tone="quiet">
+              The catalog has {catalogProblems.length} problem(s); affected entries were skipped.
+            </Alert>
+          </div>
         )}
 
         {view === 'settings' && (
           <Settings
             state={state}
+            theme={theme}
+            onTheme={setTheme}
             onImport={(next) => {
               commit(next)
               setJustSpunId(null)
@@ -246,24 +294,20 @@ export default function App() {
               exhausted={exhausted}
             />
           ) : (
-            <div className="space-y-6">
-              <p className="text-2xs text-ink-4">Already spun today. Come back tomorrow for the next one.</p>
+            <div className="space-y-4">
+              <p className="eyebrow">Already spun today</p>
               {card}
             </div>
           ))}
 
         {view === 'today' &&
           (card ?? (
-            <div className="py-12 text-center space-y-4">
+            <Card className="px-6 py-12 text-center">
               <p className="font-serif text-lg text-ink-2">No reading yet today.</p>
-              <button
-                type="button"
-                onClick={() => setView('wheel')}
-                className="min-h-12 px-6 rounded-full border border-line text-sm text-ink hover:bg-surface transition-colors"
-              >
-                Go to the wheel
-              </button>
-            </div>
+              <div className="mt-5 flex justify-center">
+                <Button onClick={() => setView('wheel')}>Go to the wheel</Button>
+              </div>
+            </Card>
           ))}
 
         {view === 'finished' && <FinishedSide state={state} />}
@@ -274,25 +318,23 @@ export default function App() {
 
 function CompletionState({ state, onOpenArchive }) {
   return (
-    <div className="py-10 text-center space-y-5">
+    <Card className="px-6 py-12 text-center">
       <p className="eyebrow">
         {TOTAL} of {TOTAL}
       </p>
-      <h1 className="font-serif text-3xl leading-tight text-ink">You have read the whole catalog.</h1>
-      <p className="font-serif text-ink-2 leading-relaxed max-w-sm mx-auto">
+      <h2 className="mt-3 font-serif text-3xl leading-tight font-semibold text-balance">
+        You have read the whole catalog.
+      </h2>
+      <p className="mx-auto mt-4 max-w-sm leading-relaxed text-ink-2">
         Every passage has come up exactly once. Nothing is left in the pool, so the wheel has nothing to
         choose between — which is the only way it ever stops.
       </p>
-      <p className="text-sm text-ink-3">
+      <p className="mt-4 text-sm text-ink-2">
         {state.completed.filter((r) => r.notes?.trim()).length} of them have notes attached.
       </p>
-      <button
-        type="button"
-        onClick={onOpenArchive}
-        className="min-h-12 px-6 rounded-full border border-line text-sm text-ink hover:bg-surface transition-colors"
-      >
-        Open the Finished Side
-      </button>
-    </div>
+      <div className="mt-6 flex justify-center">
+        <Button onClick={onOpenArchive}>Open the Finished Side</Button>
+      </div>
+    </Card>
   )
 }

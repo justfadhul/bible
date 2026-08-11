@@ -1,88 +1,241 @@
 @import 'tailwindcss';
 
 /*
- * Quiet and typographic — a well-set print devotional, not a game show.
- * The ground is deep and slightly desaturated so the catalog's own category
- * colours do all the accent work. No gradients, no shadows, no confetti.
+ * ─────────────────────────────────────────────────────────────────────────
+ *  THE DESIGN SYSTEM
  *
- * Fonts are system stacks on purpose: nothing is fetched over the network, so
- * the app opens instantly and works offline on a phone at 7am.
+ *  Soft-clay surfaces on a warm cream ground, with one deep teal accent.
+ *  Depth is the whole language: every surface is FLAT, RAISED or INSET, and
+ *  which one it is tells you what it does. Raised means you can press it.
+ *  Inset means something goes in it — a field, a track, a container of rows.
+ *  Because depth carries the meaning, colour is free to stay almost entirely
+ *  neutral, and the teal only ever marks the one thing that matters most on
+ *  a given screen.
+ *
+ *  Three appearance states, not two: an explicit choice stamps data-theme on
+ *  <html>; the default "system" stamps nothing and lets prefers-color-scheme
+ *  decide. Every colour and every shadow is a token defined in all three, so
+ *  no component hardcodes a value that only works in one appearance. The dark
+ *  side is not an inversion — extruded clay lit from the top-left reads
+ *  completely differently on a dark ground, so its shadows and highlights are
+ *  tuned separately.
+ * ─────────────────────────────────────────────────────────────────────────
  */
+
+:root {
+  /* ── Light ── */
+  --ground: #e6ded0; /* the page itself */
+  --surface: #f0eae0; /* base layer */
+  --surface-raised: #f5f1e9; /* raised layer — catches the light */
+  --surface-inset: #ddd4c4; /* inset layer — recessed */
+  --surface-sunk: #d5cbb9; /* pressed layer */
+
+  --accent: #14625e;
+  --accent-strong: #0e4b48;
+  --accent-soft: rgba(20, 98, 94, 0.1);
+  --accent-ink: #f6f2e9;
+
+  --ink: #2c2924;
+  --ink-2: #635c4e; /* 5.9:1 on raised */
+  --ink-3: #8a8172; /* 3.4:1 — decorative only, never body text */
+
+  --danger: #a2392f;
+  --danger-soft: rgba(162, 57, 47, 0.1);
+  --warn: #9a7420;
+  --ok: #2f6b46;
+
+  --hairline: rgba(120, 104, 78, 0.22);
+  --hairline-strong: rgba(120, 104, 78, 0.4);
+
+  /* Extrusion. Light falls from the top-left, so the highlight sits up-left
+     and the shadow drops down-right. Consistency here is what sells it. */
+  --lift: rgba(122, 106, 78, 0.2);
+  --glow: rgba(255, 255, 255, 0.92);
+
+  --e1: none;
+  --e2: 2px 3px 6px var(--lift), -2px -2px 5px var(--glow);
+  --e3: 4px 6px 13px var(--lift), -3px -4px 10px var(--glow);
+  --e4: 8px 12px 24px var(--lift), -5px -7px 16px var(--glow);
+  --e5: 14px 20px 38px var(--lift), -7px -9px 20px var(--glow);
+  --inset: inset 3px 4px 8px var(--lift), inset -2px -3px 6px var(--glow);
+  --inset-deep: inset 5px 6px 12px var(--lift), inset -3px -3px 7px var(--glow);
+
+  --tooltip-bg: #2c2924;
+  --tooltip-ink: #f2ede3;
+
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-spring: linear(
+    0, 0.0088 1.62%, 0.0344 3.36%, 0.1801 9.14%, 0.28 12.9%, 0.4432 18.8%,
+    0.6539 26.5%, 0.8144 33.3%, 0.9109 38.9%, 0.9713 45%, 1.0071 52.5%,
+    1.0158 58.6%, 1.0089 68.7%, 0.9997 85.5%, 1
+  );
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --ground: #1c1a17;
+    --surface: #242119;
+    --surface-raised: #2b2721;
+    --surface-inset: #191713;
+    --surface-sunk: #141210;
+
+    --accent: #4fb3a8;
+    --accent-strong: #6ecabf;
+    --accent-soft: rgba(79, 179, 168, 0.14);
+    --accent-ink: #10201e;
+
+    --ink: #efe8db;
+    --ink-2: #a99f8d;
+    --ink-3: #7d7566;
+
+    --danger: #e08477;
+    --danger-soft: rgba(224, 132, 119, 0.14);
+    --warn: #d9b264;
+    --ok: #6cc191;
+
+    --hairline: rgba(255, 255, 255, 0.09);
+    --hairline-strong: rgba(255, 255, 255, 0.18);
+
+    --lift: rgba(0, 0, 0, 0.62);
+    --glow: rgba(255, 255, 255, 0.045);
+
+    --tooltip-bg: #0f0e0c;
+    --tooltip-ink: #efe8db;
+  }
+}
+
+:root[data-theme='dark'] {
+  --ground: #1c1a17;
+  --surface: #242119;
+  --surface-raised: #2b2721;
+  --surface-inset: #191713;
+  --surface-sunk: #141210;
+
+  --accent: #4fb3a8;
+  --accent-strong: #6ecabf;
+  --accent-soft: rgba(79, 179, 168, 0.14);
+  --accent-ink: #10201e;
+
+  --ink: #efe8db;
+  --ink-2: #a99f8d;
+  --ink-3: #7d7566;
+
+  --danger: #e08477;
+  --danger-soft: rgba(224, 132, 119, 0.14);
+  --warn: #d9b264;
+  --ok: #6cc191;
+
+  --hairline: rgba(255, 255, 255, 0.09);
+  --hairline-strong: rgba(255, 255, 255, 0.18);
+
+  --lift: rgba(0, 0, 0, 0.62);
+  --glow: rgba(255, 255, 255, 0.045);
+
+  --tooltip-bg: #0f0e0c;
+  --tooltip-ink: #efe8db;
+}
+
+@theme inline {
+  --color-ground: var(--ground);
+  --color-surface: var(--surface);
+  --color-raised: var(--surface-raised);
+  --color-inset: var(--surface-inset);
+  --color-sunk: var(--surface-sunk);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warn: var(--warn);
+  --color-ok: var(--ok);
+  --color-hairline: var(--hairline);
+  --color-hairline-strong: var(--hairline-strong);
+}
+
 @theme {
-  --color-ground: #14161a;
-  --color-ground-2: #191c22;
-  --color-surface: #1e222a;
-  --color-surface-2: #252a33;
-  --color-line: #2f3540;
-  --color-line-soft: #262b34;
-
-  /*
-   * The ink ramp is deliberately tight. Every one of these carries real text,
-   * so each must clear WCAG AA (4.5:1) against the darkest surface it sits on
-   * — measured, not eyeballed. Hierarchy therefore comes from size and weight
-   * rather than from fading text out until it stops being readable.
-   */
-  --color-ink: #ece6da; /* 15.2:1 on surface */
-  --color-ink-2: #c8c0b0; /* 10.3:1 */
-  --color-ink-3: #a9a192; /*  6.2:1 */
-  --color-ink-4: #948c7d; /*  4.8:1 */
-
-  --color-accent: #d9c9a3;
-
-  /* Destructive and cautionary states, in the same warm register as the rest
-     rather than borrowed from a stock palette. Both clear AA on the ground. */
-  --color-danger: #e8908c; /* 7.6:1 */
-  --color-danger-line: #7a2f2f;
-  --color-danger-bg: #2a1517;
-  --color-warn: #e0c07a; /* 10.3:1 */
-  --color-warn-line: #6b5426;
-  --color-warn-bg: #241e11;
-
-  --font-serif: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Palatino, Georgia,
-    'Times New Roman', serif;
   --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
     Arial, sans-serif;
+  /* Scripture keeps a serif: the passage is content, everything else is chrome. */
+  --font-serif: 'Iowan Old Style', Charter, 'Palatino Linotype', Palatino, Georgia,
+    'Times New Roman', serif;
+
+  /* The radius scale from the system: 4 / 8 / 12 / 16 / 24. */
+  --radius-r1: 4px;
+  --radius-r2: 8px;
+  --radius-r3: 12px;
+  --radius-r4: 16px;
+  --radius-r5: 24px;
 
   --text-2xs: 0.6875rem;
 }
 
 html {
-  background: var(--color-ground);
+  background: var(--ground);
   -webkit-text-size-adjust: 100%;
-  /* Native checkboxes, selects and scrollbars follow the app, not the OS. */
-  color-scheme: dark;
 }
 
 body {
   margin: 0;
-  background: var(--color-ground);
-  color: var(--color-ink);
+  background: var(--ground);
+  color: var(--ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
-  /* Home-screen / notched phones: keep content clear of the system UI. */
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
-    env(safe-area-inset-left);
   overscroll-behavior-y: none;
 }
 
-/* Focus that is visible on every surface without being loud. */
-:where(a, button, input, textarea, select, [tabindex]):focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-  border-radius: 2px;
-}
-
-/* Small caps-ish label used for section headers and metadata. */
+/* The system's label style: uppercase, tracked out, small. */
 .eyebrow {
   font-size: var(--text-2xs);
-  letter-spacing: 0.14em;
+  font-weight: 700;
+  letter-spacing: 0.11em;
   text-transform: uppercase;
-  color: var(--color-ink-3);
-  font-weight: 600;
+  color: var(--ink-2);
 }
 
-/* Visible only to screen readers. */
+:where(a, button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: var(--radius-r2);
+}
+
+/*
+ * Press behaviour is the heart of the system: a raised control does not
+ * merely dim, it sinks into the surface. Shadow does the work, not colour.
+ */
+.raised {
+  background: var(--surface-raised);
+  box-shadow: var(--e3);
+  transition:
+    box-shadow 0.24s var(--ease),
+    transform 0.24s var(--ease),
+    background-color 0.24s var(--ease);
+}
+.raised:active:not(:disabled) {
+  box-shadow: var(--inset);
+  transform: translateY(1px);
+}
+.raised-2 {
+  background: var(--surface-raised);
+  box-shadow: var(--e2);
+  transition: box-shadow 0.24s var(--ease), transform 0.24s var(--ease);
+}
+.raised-2:active:not(:disabled) {
+  box-shadow: var(--inset);
+  transform: translateY(1px);
+}
+.sunken {
+  background: var(--surface-inset);
+  box-shadow: var(--inset);
+}
+.sunken-deep {
+  background: var(--surface-sunk);
+  box-shadow: var(--inset-deep);
+}
+
 .sr-only-live {
   position: absolute;
   width: 1px;
@@ -90,17 +243,16 @@ body {
   padding: 0;
   margin: -1px;
   overflow: hidden;
-  clip: rect(0 0 0 0);
   clip-path: inset(50%);
   white-space: nowrap;
   border: 0;
 }
 
-/* The reveal: a page turning, not a jackpot. */
-@keyframes page-turn {
+/* The reveal: a card rising out of the surface. */
+@keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translate3d(0, 16px, 0) scale(0.985);
   }
   to {
     opacity: 1;
@@ -108,11 +260,15 @@ body {
   }
 }
 .reveal {
-  animation: page-turn 460ms cubic-bezier(0.16, 0.84, 0.34, 1) both;
+  animation: rise 0.6s var(--ease) both;
 }
-.reveal-delay-1 { animation-delay: 90ms; }
-.reveal-delay-2 { animation-delay: 180ms; }
-.reveal-delay-3 { animation-delay: 270ms; }
+.reveal-delay-1 { animation-delay: 0.07s; }
+.reveal-delay-2 { animation-delay: 0.14s; }
+.reveal-delay-3 { animation-delay: 0.21s; }
+
+@keyframes spin-tick {
+  to { transform: rotate(360deg); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .reveal,
@@ -120,6 +276,10 @@ body {
   .reveal-delay-2,
   .reveal-delay-3 {
     animation: none;
+  }
+  .raised:active,
+  .raised-2:active {
+    transform: none;
   }
   *,
   *::before,
@@ -129,15 +289,18 @@ body {
   }
 }
 
-/* Textareas and inputs inherit the ground rather than the browser's chrome. */
 textarea,
 input[type='text'],
-input[type='search'] {
+input[type='search'],
+select {
   font-family: inherit;
   color: inherit;
   background: transparent;
 }
 
-textarea {
-  field-sizing: content;
+/* iOS zooms the page when a field under 16px is focused. */
+input,
+textarea,
+select {
+  font-size: max(1rem, inherit);
 }

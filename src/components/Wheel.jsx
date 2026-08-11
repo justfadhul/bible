@@ -104,7 +104,7 @@ export default memo(function Wheel({
       style={{ opacity: dimmed ? 0.5 : 1, transition: 'opacity 260ms ease' }}
     >
       {/* Rim: a thin ring rather than a bezel. */}
-      <circle cx={CX} cy={CY} r={OUTER + 1.2} fill="none" stroke="var(--color-line)" strokeWidth="0.5" />
+      <circle cx={CX} cy={CY} r={OUTER + 1.2} fill="none" stroke="var(--hairline-strong)" strokeWidth="0.5" />
 
       <g
         ref={groupRef}
@@ -118,7 +118,7 @@ export default memo(function Wheel({
           if (e.propertyName === 'transform') onSettled?.()
         }}
       >
-        {count === 0 && <circle cx={CX} cy={CY} r={OUTER} fill="var(--color-surface)" />}
+        {count === 0 && <circle cx={CX} cy={CY} r={OUTER} fill="var(--surface-raised)" />}
 
         {segments.map((s, i) => {
           // Flat fills only. Where every segment shares one category colour
@@ -135,7 +135,7 @@ export default memo(function Wheel({
               <path
                 d={segmentPath(CX, CY, OUTER, INNER, segmentStart(i, count), segmentStart(i, count) + step)}
                 fill={fill}
-                stroke="var(--color-ground)"
+                stroke="var(--ground)"
                 strokeWidth={count > 18 ? 0.35 : 0.55}
                 strokeLinejoin="round"
               />
@@ -166,8 +166,8 @@ export default memo(function Wheel({
         cx={CX}
         cy={CY}
         r={INNER - 0.6}
-        fill="var(--color-ground-2)"
-        stroke="var(--color-line)"
+        fill="var(--surface-raised)"
+        stroke="var(--hairline-strong)"
         strokeWidth="0.4"
       />
       {hubLabel != null && (
@@ -175,7 +175,7 @@ export default memo(function Wheel({
           x={CX}
           y={hubSub ? CY - 0.4 : CY + 1.6}
           textAnchor="middle"
-          fill="var(--color-ink)"
+          fill="var(--ink)"
           fontSize="5.2"
           fontFamily="var(--font-serif)"
         >
@@ -187,7 +187,7 @@ export default memo(function Wheel({
           x={CX}
           y={CY + 4.8}
           textAnchor="middle"
-          fill="var(--color-ink-3)"
+          fill="var(--ink-2)"
           fontSize="2.5"
           fontFamily="var(--font-sans)"
           letterSpacing="0.1em"
@@ -200,9 +200,9 @@ export default memo(function Wheel({
       <g>
         <path
           d={`M ${CX} ${CY - OUTER + 3.4} L ${CX - 3} ${CY - OUTER - 3.2} L ${CX + 3} ${CY - OUTER - 3.2} Z`}
-          fill="var(--color-accent)"
+          fill="var(--ink)"
         />
-        <circle cx={CX} cy={CY - OUTER - 3.6} r="1.5" fill="var(--color-accent)" />
+        <circle cx={CX} cy={CY - OUTER - 3.6} r="1.5" fill="var(--ink)" />
       </g>
     </svg>
   )

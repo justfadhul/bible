@@ -16,3 +16,5 @@ dist/
 .watchdog.mjs
 .reach.mjs
 .preview-test.mjs
+.dbg.mjs
+.themes.mjs

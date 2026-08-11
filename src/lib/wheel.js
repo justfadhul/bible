@@ -160,20 +160,23 @@ export function contrastRatio(a, b) {
 const tintCache = new Map()
 
 /**
- * The category's own colour, lightened just enough to be legible as text on a
- * dark ground. Several catalog colours (the deep violets especially) sit around
- * 2.5:1 against the app background, which is unreadable at 11px — so we walk
- * the colour toward white until it clears the threshold rather than replacing
- * it with a palette of our own. The hue stays; only the lightness moves.
+ * The category's own colour, moved just far enough to be legible as text on a
+ * given ground. Several catalog colours (the deep violets especially) sit
+ * around 2.5:1 on a dark background and would be unreadable at 11px, while on
+ * white it is the darker ones that need help — so we walk the colour away from
+ * the ground until it clears the threshold, rather than replacing it with a
+ * palette of our own. The hue stays; only the lightness moves.
  */
-export function readableInk(color, bg = '#14161a', min = 4.5) {
+export function readableInk(color, bg = '#000000', min = 4.5) {
   const key = `${color}|${bg}|${min}`
   const hit = tintCache.get(key)
   if (hit) return hit
 
+  // Away from the ground: lighten on a dark ground, darken on a light one.
+  const direction = relativeLuminance(bg) < 0.18 ? 1 : -1
   let out = color
   for (let step = 0; step <= 20; step++) {
-    out = step === 0 ? color : shade(color, step * 0.05)
+    out = step === 0 ? color : shade(color, direction * step * 0.05)
     if (contrastRatio(out, bg) >= min) break
   }
   tintCache.set(key, out)

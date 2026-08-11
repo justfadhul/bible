@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Wheel from './Wheel.jsx'
 import ProgressStrip from './ProgressStrip.jsx'
+import { Button } from './ui.jsx'
 import { planSpin, availableCategories } from '../lib/selection.js'
 import { computeFinalRotation, randomJitter } from '../lib/wheel.js'
 import { TOTAL } from '../lib/catalog.js'
@@ -159,36 +160,39 @@ export default function WheelView({ completedIds, onLanded, onAnnounce, exhauste
         : null
 
   return (
-    <div className="space-y-7">
-      <Wheel
-        segments={segments}
-        rotation={rotation}
-        spinning={spinning}
-        durationMs={duration}
-        onSettled={() => settle(phase)}
-        hubLabel={exhausted ? '✓' : remaining}
-        hubSub={exhausted ? 'ALL READ' : 'LEFT'}
-        maxLines={showingEntries ? 1 : 2}
-        title={
-          showingEntries
-            ? `Passage wheel: ${segments.length} unread entries`
-            : `Category wheel: ${segments.length} categories with unread entries`
-        }
-      />
+    <div className="space-y-6">
+      {/* The wheel sits in a recessed well — inset means something lives in
+          it, and the rim reads as the edge of the dial rather than a border. */}
+      <div className="sunken rounded-full p-3">
+        <Wheel
+          segments={segments}
+          rotation={rotation}
+          spinning={spinning}
+          durationMs={duration}
+          onSettled={() => settle(phase)}
+          hubLabel={exhausted ? '✓' : remaining}
+          hubSub={exhausted ? 'ALL READ' : 'LEFT'}
+          maxLines={showingEntries ? 1 : 2}
+          title={
+            showingEntries
+              ? `Passage wheel: ${segments.length} unread entries`
+              : `Category wheel: ${segments.length} categories with unread entries`
+          }
+        />
+      </div>
 
       <div className="space-y-3">
-        <button
-          type="button"
+        <Button
+          size="lg"
+          className="w-full"
           onClick={spin}
           disabled={busy || exhausted}
-          className="w-full min-h-14 rounded-full bg-ink text-ground font-semibold tracking-wide text-base
-                     transition-[transform,opacity] active:scale-[0.985]
-                     disabled:opacity-35 disabled:cursor-not-allowed"
+          busy={busy}
         >
           {exhausted ? 'Catalog complete' : busy ? 'Spinning…' : 'Spin'}
-        </button>
+        </Button>
 
-        <p className="text-center text-xs text-ink-3 min-h-4">
+        <p className="min-h-5 text-center text-xs text-ink-2">
           {stage ?? (exhausted ? 'Every passage has been read.' : 'One spin a day. The spin is binding.')}
         </p>
       </div>

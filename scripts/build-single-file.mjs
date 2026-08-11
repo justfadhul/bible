@@ -28,6 +28,14 @@ if (jsFiles.length !== 1) throw new Error(`expected exactly one JS bundle, found
 const css = readFileSync(resolve(dist, 'assets', cssFile), 'utf8')
 const js = readFileSync(resolve(dist, 'assets', jsFiles[0]), 'utf8')
 
+// Carry over any inline <script> from the built index.html — the appearance
+// bootstrap lives there because it has to run before first paint, and pulling
+// it out of the build rather than restating it keeps the two in step.
+const indexHtml = readFileSync(resolve(dist, 'index.html'), 'utf8')
+const inlineScripts = [...indexHtml.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)]
+  .map((m) => m[1].trim())
+  .filter(Boolean)
+
 // A literal </script> anywhere in the bundle would close the tag early.
 const safeJs = js.replace(/<\/script/gi, '<\\/script')
 
@@ -39,6 +47,7 @@ const html = `<meta charset="utf-8">
 <style>
 ${css}
 </style>
+${inlineScripts.map((s) => `<script>\n${s}\n</script>`).join('\n')}
 <div id="root"></div>
 <script type="module">
 ${safeJs}
@@ -49,7 +58,8 @@ writeFileSync(out, html)
 
 const kb = (n) => `${(n / 1024).toFixed(1)} kB`
 console.log(`\nwrote ${out}`)
-console.log(`  css     ${kb(css.length)}`)
-console.log(`  js      ${kb(js.length)}`)
-console.log(`  total   ${kb(html.length)}`)
+console.log(`  css            ${kb(css.length)}`)
+console.log(`  js             ${kb(js.length)}`)
+console.log(`  inline scripts ${inlineScripts.length} carried from index.html`)
+console.log(`  total          ${kb(html.length)}`)
 console.log(`  external requests: 0\n`)

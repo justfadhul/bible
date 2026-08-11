@@ -5,33 +5,20 @@
  * only way back is the 60-second undo, which App owns.
  */
 import { useEffect, useRef, useState } from 'react'
+import { Badge, Button, Card, Checkbox, Field, Icon, ICONS } from './ui.jsx'
 import { getCategory } from '../lib/catalog.js'
 import { formatLongDate } from '../lib/date.js'
 import { inkOn } from '../lib/wheel.js'
 
 const SIZE_HINT = {
-  short: 'Short — under about 15 verses',
-  medium: 'Medium — about a chapter',
-  long: 'Long — a chapter or more',
+  short: 'Short · under about 15 verses',
+  medium: 'Medium · about a chapter',
+  long: 'Long · a chapter or more',
 }
 
 /** WhatsApp understands *bold* and _italic_; this is shaped for pasting there. */
 export function clipboardText(entry) {
   return [`*${entry.topic}*`, entry.reference, '', `_${entry.question}_`].join('\n')
-}
-
-function ReaderCheck({ label, checked, onChange }) {
-  return (
-    <label className="flex items-center gap-3 min-h-11 px-3 rounded-lg border border-line-soft bg-ground-2 flex-1 cursor-pointer has-checked:border-line has-checked:bg-surface transition-colors">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="size-5 shrink-0 accent-ink"
-      />
-      <span className={`text-sm truncate ${checked ? 'text-ink' : 'text-ink-2'}`}>{label}</span>
-    </label>
-  )
 }
 
 export default function TodayCard({
@@ -52,14 +39,14 @@ export default function TodayCard({
   const debounce = useRef(null)
   const headingRef = useRef(null)
 
-  // Notes are local while typing and flushed on a short debounce, so the card
-  // stays responsive and storage is not written on every keystroke.
   useEffect(() => {
     setDraft(row?.notes ?? '')
   }, [entry.id, row?.notes])
 
   useEffect(() => () => clearTimeout(debounce.current), [])
 
+  // Notes are local while typing and flushed on a short debounce, so the card
+  // stays responsive and storage is not written on every keystroke.
   const onDraft = (value) => {
     setDraft(value)
     clearTimeout(debounce.current)
@@ -93,64 +80,58 @@ export default function TodayCard({
   const r = animate ? 'reveal' : ''
 
   return (
-    <article className="space-y-6">
-      <header className={`space-y-3 ${r}`}>
-        <div className="flex items-center gap-2 flex-wrap">
-          <span
-            className="inline-flex items-center rounded-full px-2.5 py-1 text-2xs font-semibold tracking-wide uppercase"
-            style={{ background: category?.color, color: inkOn(category?.color ?? '#000') }}
-          >
+    <article className="space-y-4">
+      <Card className={`px-5 py-5 ${r}`} level={4}>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge style={{ background: category?.color, color: inkOn(category?.color ?? '#000'), boxShadow: 'var(--e2)' }}>
             {category?.name}
-          </span>
-          <span className="text-2xs text-ink-3">{SIZE_HINT[entry.size] ?? entry.size}</span>
+          </Badge>
+          <span className="text-xs text-ink-2">{SIZE_HINT[entry.size] ?? entry.size}</span>
         </div>
 
-        <h1
+        <h2
           ref={headingRef}
           tabIndex={-1}
-          className="font-serif text-[1.75rem] leading-[1.15] text-ink outline-none"
+          className="mt-3.5 font-serif text-[1.75rem] leading-[1.16] font-semibold text-balance outline-none"
         >
           {entry.topic}
-        </h1>
-        <p className="font-serif text-lg text-ink-2">{entry.reference}</p>
-        <p className="text-2xs text-ink-4">
-          {isToday ? "Today's reading · " : ''}
+        </h2>
+        <p className="mt-1.5 font-serif text-lg text-ink-2">{entry.reference}</p>
+        <p className="mt-2.5 text-2xs tracking-[0.05em] uppercase text-ink-2">
+          {isToday ? 'Today · ' : ''}
           {formatLongDate(dateISO)}
         </p>
-      </header>
 
-      <p className={`font-serif text-[1.0625rem] leading-relaxed text-ink-2 border-l-2 pl-4 ${r} reveal-delay-1`}
-         style={{ borderColor: category?.color }}>
-        {entry.hook}
-      </p>
+        <p
+          className="mt-4 border-l-[3px] pl-4 font-serif leading-[1.6] text-ink-2"
+          style={{ borderColor: category?.color }}
+        >
+          {entry.hook}
+        </p>
+      </Card>
 
-      <section className={`rounded-xl border border-line-soft bg-ground-2 p-4 space-y-2 ${r} reveal-delay-2`}>
+      <Card className={`px-5 py-4 ${r} reveal-delay-1`}>
         <p className="eyebrow">To discuss</p>
-        <p className="font-serif text-lg leading-snug text-ink">{entry.question}</p>
-      </section>
+        <p className="mt-2.5 font-serif text-xl leading-snug">{entry.question}</p>
+      </Card>
 
       {undo && (
-        <div className="rounded-xl border border-line bg-surface p-3 flex items-center gap-3">
-          <p className="text-xs text-ink-2 flex-1">
-            Misclick? You can undo this spin for {undo.secondsLeft}s.
-          </p>
-          <button
-            type="button"
-            onClick={onUndo}
-            className="min-h-11 px-4 rounded-lg border border-line text-sm text-ink hover:bg-surface-2 transition-colors"
-          >
+        <Card className="flex items-center gap-3 px-4 py-3" level={2}>
+          <p className="flex-1 text-sm text-ink-2">Misclick? You can undo this spin for {undo.secondsLeft}s.</p>
+          <Button variant="secondary" size="sm" onClick={onUndo}>
+            <Icon path={ICONS.undo} size={16} />
             Undo
-          </button>
-        </div>
+          </Button>
+        </Card>
       )}
 
-      <section className={`space-y-3 ${r} reveal-delay-3`}>
+      <Card className={`px-4 py-4 ${r} reveal-delay-2`}>
         <p className="eyebrow">Read by</p>
-        <div className="flex gap-2">
-          <ReaderCheck label={readerNames.a} checked={!!row?.readBy?.a} onChange={(v) => onReadBy('a', v)} />
-          <ReaderCheck label={readerNames.b} checked={!!row?.readBy?.b} onChange={(v) => onReadBy('b', v)} />
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <Checkbox label={readerNames.a} checked={!!row?.readBy?.a} onChange={(v) => onReadBy('a', v)} className="px-1" />
+          <Checkbox label={readerNames.b} checked={!!row?.readBy?.b} onChange={(v) => onReadBy('b', v)} className="px-1" />
         </div>
-        <p className="text-2xs text-ink-4" aria-live="polite">
+        <p className="mt-1.5 text-xs text-ink-2" aria-live="polite">
           {row?.readBy?.a && row?.readBy?.b
             ? 'You have both marked this as read.'
             : row?.readBy?.a
@@ -159,32 +140,25 @@ export default function TodayCard({
                 ? `${readerNames.b} has read this. ${readerNames.a} has not yet.`
                 : 'Neither of you has marked this as read yet.'}
         </p>
-      </section>
+      </Card>
 
-      <section className="space-y-2">
-        <label htmlFor="notes" className="eyebrow block">
-          Notes
-        </label>
-        <textarea
+      <Card className="px-4 py-4">
+        <Field
+          as="textarea"
           id="notes"
+          label="Notes"
+          hint="Saved as you type."
           value={draft}
           onChange={(e) => onDraft(e.target.value)}
           placeholder="What came up when you talked about it…"
           rows={4}
-          className="w-full rounded-xl border border-line-soft bg-ground-2 p-3 text-[0.9375rem] leading-relaxed
-                     text-ink placeholder:text-ink-4 resize-y min-h-24 focus:border-line"
         />
-        <p className="text-2xs text-ink-4">Saved as you type.</p>
-      </section>
+      </Card>
 
-      <button
-        type="button"
-        onClick={copy}
-        className="w-full min-h-12 rounded-full border border-line text-sm text-ink
-                   hover:bg-surface active:scale-[0.985] transition-[transform,background-color]"
-      >
+      <Button variant="secondary" className="w-full" onClick={copy}>
+        <Icon path={ICONS.copy} size={18} />
         {copied ? 'Copied' : 'Copy for WhatsApp'}
-      </button>
+      </Button>
     </article>
   )
 }

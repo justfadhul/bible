@@ -1,5 +1,5 @@
 /**
- * Settings: reader names, export, import, reset.
+ * Settings.
  *
  * Export writes the persisted state verbatim, so an export → reset → import
  * round trip restores exactly what was there. Import runs the file through the
@@ -7,20 +7,21 @@
  * truncated file cannot corrupt the app.
  */
 import { useRef, useState } from 'react'
+import { Alert, Button, Card, Field, Icon, ICONS, Segmented } from './ui.jsx'
 import { normalizeState } from '../lib/storage.js'
 import { TOTAL, meta } from '../lib/catalog.js'
 
-function Panel({ title, children, note }) {
+function Group({ header, footer, children, className = '' }) {
   return (
-    <section className="rounded-xl border border-line-soft bg-ground-2 p-4 space-y-3">
-      <p className="eyebrow">{title}</p>
-      {children}
-      {note && <p className="text-2xs text-ink-4 leading-relaxed">{note}</p>}
+    <section>
+      {header && <h2 className="eyebrow mb-2 px-1">{header}</h2>}
+      <Card className={`px-4 py-4 ${className}`}>{children}</Card>
+      {footer && <p className="mt-2 px-1 text-xs leading-relaxed text-ink-2">{footer}</p>}
     </section>
   )
 }
 
-export default function Settings({ state, onImport, onReset, onReaderName }) {
+export default function Settings({ state, theme, onTheme, onImport, onReset, onReaderName }) {
   const fileRef = useRef(null)
   const [status, setStatus] = useState(null)
   const [pendingReset, setPendingReset] = useState(false)
@@ -68,66 +69,55 @@ export default function Settings({ state, onImport, onReset, onReaderName }) {
   }
 
   return (
-    <div className="space-y-5">
-      <header className="space-y-1">
-        <h1 className="font-serif text-2xl text-ink">Settings</h1>
-        <p className="text-sm text-ink-3">
-          {state.completed.length} of {TOTAL} read · catalog v{meta.version}
-        </p>
-      </header>
-
+    <div className="space-y-6">
       {status && (
-        <p
-          role="status"
-          className={`rounded-lg border p-3 text-sm leading-relaxed ${
-            status.kind === 'error'
-              ? 'border-danger-line bg-danger-bg text-danger'
-              : status.kind === 'warn'
-                ? 'border-warn-line bg-warn-bg text-warn'
-                : 'border-line bg-surface text-ink-2'
-          }`}
-        >
-          {status.text}
-        </p>
+        <div role="status">
+          <Alert
+            tone={status.kind === 'ok' ? 'accent' : 'quiet'}
+            icon={status.kind === 'ok' ? ICONS.check : ICONS.warning}
+          >
+            {status.text}
+          </Alert>
+        </div>
       )}
 
-      <Panel title="Who is reading" note="Only used to label the two checkboxes on a reading.">
-        <div className="space-y-2">
-          {['a', 'b'].map((key) => (
-            <label key={key} className="flex items-center gap-3">
-              <span className="text-2xs text-ink-3 w-16 shrink-0">Reader {key.toUpperCase()}</span>
-              <input
-                type="text"
-                value={state.readerNames[key]}
-                onChange={(e) => onReaderName(key, e.target.value.slice(0, 40))}
-                maxLength={40}
-                className="flex-1 min-w-0 min-h-11 rounded-lg border border-line-soft bg-ground px-3 text-sm text-ink focus:border-line"
-              />
-            </label>
-          ))}
-        </div>
-      </Panel>
+      <Group header="Appearance" footer="System follows your device's Light or Dark setting, and changes with it.">
+        <Segmented
+          label="Appearance"
+          value={theme}
+          onChange={onTheme}
+          options={[
+            { value: 'light', label: 'Light' },
+            { value: 'dark', label: 'Dark' },
+            { value: 'system', label: 'System' },
+          ]}
+        />
+      </Group>
 
-      <Panel
-        title="Backup"
-        note="Export writes your history to a file. Import replaces everything currently stored, so export first if you might want it back."
+      <Group header="Who is reading" footer="Only used to label the two checkboxes on a reading." className="space-y-3">
+        {['a', 'b'].map((key) => (
+          <Field
+            key={key}
+            id={`reader-${key}`}
+            label={`Reader ${key.toUpperCase()}`}
+            value={state.readerNames[key]}
+            onChange={(e) => onReaderName(key, e.target.value.slice(0, 40))}
+            maxLength={40}
+          />
+        ))}
+      </Group>
+
+      <Group
+        header="Backup"
+        footer="Export writes your history to a file. Import replaces everything currently stored, so export first if you might want it back."
+        className="flex gap-2.5"
       >
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={exportJSON}
-            className="flex-1 min-h-12 rounded-lg border border-line text-sm text-ink hover:bg-surface transition-colors"
-          >
-            Export JSON
-          </button>
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            className="flex-1 min-h-12 rounded-lg border border-line text-sm text-ink hover:bg-surface transition-colors"
-          >
-            Import JSON
-          </button>
-        </div>
+        <Button variant="secondary" className="flex-1" onClick={exportJSON}>
+          Export JSON
+        </Button>
+        <Button variant="secondary" className="flex-1" onClick={() => fileRef.current?.click()}>
+          Import JSON
+        </Button>
         {/* Driven by the Import button above; hidden rather than styled. */}
         <input
           ref={fileRef}
@@ -138,62 +128,65 @@ export default function Settings({ state, onImport, onReset, onReaderName }) {
           className="sr-only-live"
           tabIndex={-1}
         />
-      </Panel>
+      </Group>
 
-      <Panel
-        title="Reset"
-        note="This clears every reading, every note and the day lock. It cannot be undone."
-      >
+      <Group header="Reset" footer="This clears every reading, every note and the day lock. It cannot be undone.">
         {!pendingReset ? (
-          <button
-            type="button"
-            onClick={() => setPendingReset(true)}
-            className="w-full min-h-12 rounded-lg border border-danger-line text-sm text-danger hover:bg-danger-bg transition-colors"
-          >
+          <Button variant="danger" className="w-full" onClick={() => setPendingReset(true)}>
             Reset everything
-          </button>
+          </Button>
         ) : (
-          <div className="space-y-3">
-            <label htmlFor="reset-confirm" className="block text-sm text-ink-2">
-              Type <span className="font-semibold text-ink">RESET</span> to confirm.
-            </label>
-            <input
+          <div className="space-y-3.5">
+            <div className="flex items-start gap-3">
+              <span className="grid size-10 shrink-0 place-items-center rounded-r3 text-warn sunken">
+                <Icon path={ICONS.warning} size={20} />
+              </span>
+              <p className="flex-1 text-sm leading-relaxed text-ink-2">
+                Type <span className="font-semibold text-ink">RESET</span> to confirm. Everything goes.
+              </p>
+            </div>
+            <Field
               id="reset-confirm"
-              type="text"
+              aria-label="Type RESET to confirm"
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value)}
               autoComplete="off"
               autoCapitalize="characters"
-              className="w-full min-h-11 rounded-lg border border-line-soft bg-ground px-3 text-sm text-ink focus:border-line"
+              placeholder="RESET"
             />
-            <div className="flex gap-2">
-              <button
-                type="button"
+            <div className="flex gap-2.5">
+              <Button
+                variant="secondary"
+                className="flex-1"
                 onClick={() => {
                   setPendingReset(false)
                   setConfirmText('')
                 }}
-                className="flex-1 min-h-12 rounded-lg border border-line text-sm text-ink hover:bg-surface transition-colors"
               >
                 Cancel
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                className="flex-1"
                 onClick={doReset}
                 disabled={confirmText !== 'RESET'}
-                className="flex-1 min-h-12 rounded-lg border border-danger-line text-sm text-danger
-                           hover:bg-danger-bg disabled:opacity-35 disabled:cursor-not-allowed transition-colors"
+                style={
+                  confirmText === 'RESET'
+                    ? { background: 'var(--danger)', color: '#fff', boxShadow: 'var(--e3)' }
+                    : undefined
+                }
               >
                 Reset
-              </button>
+              </Button>
             </div>
           </div>
         )}
-      </Panel>
+      </Group>
 
-      <p className="text-2xs text-ink-4 leading-relaxed">
-        History is stored in this browser only. Nothing is sent anywhere, and clearing site data will remove
-        it — export a copy if it matters to you.
+      <p className="px-1 pb-2 text-xs leading-relaxed text-ink-2">
+        {state.completed.length} of {TOTAL} read · catalog v{meta.version}
+        <br />
+        History is stored in this browser only. Nothing is sent anywhere, and clearing site data will
+        remove it — export a copy if it matters to you.
       </p>
     </div>
   )
