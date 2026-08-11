@@ -69,25 +69,29 @@ export default memo(function Wheel({
     const g = groupRef.current
     if (!g || !count || passRef.current >= MAX_FIT_PASSES) return
 
-    let worst = 0
+    // Measure the real glyph advance rather than iterating toward it: the
+    // widest label tells us directly what this device's font costs per
+    // character, so one pass lands on the true budget instead of creeping
+    // down to a needlessly conservative one.
+    let widest = 0
     for (const node of g.querySelectorAll('tspan')) {
       const chars = node.textContent?.length ?? 0
       if (!chars) continue
-      let width = 0
+      let width
       try {
         width = node.getComputedTextLength()
       } catch {
         return // jsdom and other non-rendering hosts: keep the estimate
       }
-      if (width > worst) worst = width
+      const perChar = width / (chars * fontSize)
+      if (perChar > widest) widest = perChar
     }
-    if (!worst) return
+    if (!widest) return
 
-    const ratio = worst / BAND
-    // Only correct when a label genuinely overhangs its band.
-    if (ratio > 1.001) {
+    const measured = widest * 1.01 // a hair of margin against sub-pixel rounding
+    if (Math.abs(measured - charW) / charW > 0.01) {
       passRef.current += 1
-      setCharW((prev) => prev * ratio * 1.02) // 2% margin so it settles rather than oscillates
+      setCharW(measured)
     }
   })
 

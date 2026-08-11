@@ -7,3 +7,6 @@ dist/
 # local dev harnesses (container-specific browser paths)
 .shot.mjs
 .measure.mjs
+.seed.mjs
+.e2e.mjs
+.crop.mjs

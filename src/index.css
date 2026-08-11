@@ -34,6 +34,8 @@
 html {
   background: var(--color-ground);
   -webkit-text-size-adjust: 100%;
+  /* Native checkboxes, selects and scrollbars follow the app, not the OS. */
+  color-scheme: dark;
 }
 
 body {

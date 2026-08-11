@@ -37,32 +37,25 @@ export function truncate(text, maxChars) {
 }
 
 /**
- * Word-wraps into at most `maxLines`, truncating the last line if it still
- * overflows. Returns an array of strings.
+ * Splits onto two lines at the word break that makes the two lines as even as
+ * possible — greedy filling would leave "Calling and / Costly Obedience", which
+ * overflows the second line while the first sits half empty.
  */
-export function wrapLabel(text, maxChars, maxLines) {
-  if (maxLines <= 1) return [truncate(text, maxChars)]
+export function wrapLabel(text, maxChars) {
   const words = text.split(/\s+/).filter(Boolean)
-  const lines = []
-  let line = ''
-  for (const w of words) {
-    const next = line ? `${line} ${w}` : w
-    if (next.length <= maxChars || !line) {
-      line = next
-    } else {
-      lines.push(line)
-      line = w
-      if (lines.length === maxLines - 1) break
-    }
-  }
-  const consumed = lines.join(' ').length
-  const rest = consumed ? text.slice(consumed).trim() : text
-  if (lines.length < maxLines) lines.push(line && lines.length === 0 ? line : rest || line)
-  else lines[maxLines - 1] = rest || lines[maxLines - 1]
+  if (words.length < 2) return [truncate(text, maxChars)]
 
-  const out = lines.slice(0, maxLines).filter((l) => l.length)
-  out[out.length - 1] = truncate(out[out.length - 1], maxChars)
-  return out
+  let best = null
+  for (let k = 1; k < words.length; k++) {
+    const first = words.slice(0, k).join(' ')
+    const second = words.slice(k).join(' ')
+    const longest = Math.max(first.length, second.length)
+    const overflow = Math.max(0, first.length - maxChars) + Math.max(0, second.length - maxChars)
+    // Fit first, evenness second.
+    const score = overflow * 1000 + longest
+    if (!best || score < best.score) best = { score, lines: [first, second] }
+  }
+  return best.lines.map((l) => truncate(l, maxChars))
 }
 
 /**
@@ -78,6 +71,6 @@ export function layoutLabels({ labels, count, textStartR, bandLength, maxLines =
     lines,
     maxChars,
     // Only wrap onto a second line when the label actually needs one.
-    rows: labels.map((t) => (lines > 1 && t.length > maxChars ? wrapLabel(t, maxChars, 2) : [truncate(t, maxChars)])),
+    rows: labels.map((t) => (lines > 1 && t.length > maxChars ? wrapLabel(t, maxChars) : [truncate(t, maxChars)])),
   }
 }
