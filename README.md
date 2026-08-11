@@ -143,6 +143,9 @@ Browser checks (Chromium at 380px), all passing:
 - Export → reset → import restores byte-identical state, including notes with quotes and newlines.
 - Reduced motion reveals in ~370ms with no spin.
 - Spin is keyboard-reachable, announced, and focus lands on the result.
+- The spin still completes with `transitionend` suppressed entirely — a watchdog advances each stage
+  if the browser swallows the event, so backgrounding the tab mid-spin cannot strand the wheel.
+- The spin button sits at y=592–648 in a 667px-tall viewport, inside the one-handed thumb zone.
 - Near-exhaustion holds: with one category left the wheel draws a full ring (an SVG arc cannot
   span 360°, so a naive path collapses and the last segment vanishes), and the 286th spin leads to
   the completion state rather than an error.

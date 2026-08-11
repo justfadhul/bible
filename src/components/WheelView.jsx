@@ -31,13 +31,19 @@ export default function WheelView({ completedIds, onLanded, onAnnounce, exhauste
   const [duration, setDuration] = useState(0)
   const planRef = useRef(null)
   const timers = useRef([])
+  // Each stage advances exactly once, whether it was the transition ending or
+  // the watchdog below that got there first.
+  const settled = useRef(new Set())
 
   const spinning = phase === 'stage1' || phase === 'stage2'
   const busy = phase !== 'idle'
 
   const after = useCallback((ms, fn) => {
-    const id = setTimeout(fn, ms)
-    timers.current.push(id)
+    timers.current.push(setTimeout(fn, ms))
+  }, [])
+  const clearTimers = useCallback(() => {
+    timers.current.forEach(clearTimeout)
+    timers.current = []
   }, [])
   useEffect(() => () => timers.current.forEach(clearTimeout), [])
 
@@ -58,6 +64,55 @@ export default function WheelView({ completedIds, onLanded, onAnnounce, exhauste
     onLanded(plan)
   }, [onLanded])
 
+  /**
+   * Advances one stage of the spin. Normally triggered by the wheel's
+   * transitionend; also by a watchdog, because a backgrounded tab can swallow
+   * that event and a spin that never finishes would strand the reader on a
+   * stopped wheel. Whichever arrives first wins; the second is ignored.
+   */
+  const settle = useCallback(
+    (stage) => {
+      const plan = planRef.current
+      if (!plan || settled.current.has(stage)) return
+      settled.current.add(stage)
+
+      if (stage === 'stage1') {
+        setPhase('handover')
+        onAnnounce?.(`${plan.category.name}. Now choosing the passage.`)
+        after(HANDOVER_MS, () => {
+          // Re-seat at zero with no transition and swap in the entries, then
+          // start stage 2 on the next frame — otherwise the browser
+          // interpolates between two unrelated wheels.
+          setDuration(0)
+          setRotation(0)
+          setSpunSegments(toEntrySegments(plan.entries, plan.category.color))
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+              setDuration(STAGE_2_MS)
+              setPhase('stage2')
+              setRotation(
+                computeFinalRotation({
+                  targetIndex: plan.entryIndex,
+                  count: plan.entries.length,
+                  turns: 3,
+                  jitter: randomJitter(),
+                }),
+              )
+              after(STAGE_2_MS + 600, () => settle('stage2'))
+            }),
+          )
+        })
+        return
+      }
+
+      if (stage === 'stage2') {
+        setPhase('landing')
+        after(SETTLE_MS, finish)
+      }
+    },
+    [after, finish, onAnnounce],
+  )
+
   const spin = useCallback(() => {
     if (busy || exhausted) return
 
@@ -65,6 +120,8 @@ export default function WheelView({ completedIds, onLanded, onAnnounce, exhauste
     const plan = planSpin(completedIds)
     if (!plan) return
     planRef.current = plan
+    settled.current = new Set()
+    clearTimers()
     onAnnounce?.('Spinning.')
 
     if (reduced) {
@@ -90,46 +147,8 @@ export default function WheelView({ completedIds, onLanded, onAnnounce, exhauste
         jitter: randomJitter(),
       }),
     )
-  }, [busy, exhausted, completedIds, reduced, onAnnounce, after, finish])
-
-  // Handover and landing are driven by the wheel's own transitionend.
-  const onSettled = useCallback(() => {
-    const plan = planRef.current
-    if (!plan) return
-
-    if (phase === 'stage1') {
-      setPhase('handover')
-      onAnnounce?.(`${plan.category.name}. Now choosing the passage.`)
-      after(HANDOVER_MS, () => {
-        // Re-seat at zero with no transition and swap in the entries, then
-        // start stage 2 on the next frame — otherwise the browser interpolates
-        // between two unrelated wheels.
-        setDuration(0)
-        setRotation(0)
-        setSpunSegments(toEntrySegments(plan.entries, plan.category.color))
-        requestAnimationFrame(() =>
-          requestAnimationFrame(() => {
-            setDuration(STAGE_2_MS)
-            setPhase('stage2')
-            setRotation(
-              computeFinalRotation({
-                targetIndex: plan.entryIndex,
-                count: plan.entries.length,
-                turns: 3,
-                jitter: randomJitter(),
-              }),
-            )
-          }),
-        )
-      })
-      return
-    }
-
-    if (phase === 'stage2') {
-      setPhase('landing')
-      after(SETTLE_MS, finish)
-    }
-  }, [phase, after, finish, onAnnounce])
+    after(STAGE_1_MS + 600, () => settle('stage1'))
+  }, [busy, exhausted, completedIds, reduced, onAnnounce, after, clearTimers, finish, settle])
 
   const remaining = TOTAL - completedIds.size
   const stage =
@@ -146,7 +165,7 @@ export default function WheelView({ completedIds, onLanded, onAnnounce, exhauste
         rotation={rotation}
         spinning={spinning}
         durationMs={duration}
-        onSettled={onSettled}
+        onSettled={() => settle(phase)}
         hubLabel={exhausted ? '✓' : remaining}
         hubSub={exhausted ? 'ALL READ' : 'LEFT'}
         maxLines={showingEntries ? 1 : 2}
