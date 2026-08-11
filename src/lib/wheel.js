@@ -182,3 +182,50 @@ export function readableInk(color, bg = '#000000', min = 4.5) {
   tintCache.set(key, out)
   return out
 }
+
+/* ── how a spun wheel actually travels ─────────────────────────────────── */
+
+/**
+ * The easing of a real wheel, derived rather than hand-tuned.
+ *
+ * A wheel spun by hand does two things. It is accelerated briefly while the
+ * hand is still on it, then released to coast against bearing friction. Dry
+ * friction is a roughly constant retarding torque, so the deceleration is
+ * constant: ω(t) = ω₀ − αt, and the wheel stops when ω reaches zero rather
+ * than creeping asymptotically toward it.
+ *
+ * Integrating that gives the angle over time. With normalised time u = t/T and
+ * a spin-up that lasts `spinUp` of the total:
+ *
+ *   spin-up   ω ∝ u/spinUp                 →  p(u) = u² / spinUp
+ *   coasting  ω ∝ 1 − (u − spinUp)/S       →  p(u) = spinUp + 2s − s²/S
+ *                                             where s = u − spinUp, S = 1 − spinUp
+ *
+ * which lands exactly on p(1) = 1. Sampled into a CSS `linear()` easing, this
+ * is the curve the animation runs on — so the wheel slows the way a wheel
+ * slows, and the detents under the pointer space out on their own.
+ *
+ * Returns a string like "linear(0, 0.0147, 0.0416, …)".
+ */
+export function frictionEasing({ spinUp = 0.05, samples = 64 } = {}) {
+  const S = 1 - spinUp
+  const p = (u) => {
+    if (u <= spinUp) return (u * u) / spinUp
+    const s = u - spinUp
+    return spinUp + 2 * s - (s * s) / S
+  }
+  const stops = []
+  for (let i = 0; i <= samples; i++) {
+    const u = i / samples
+    stops.push(Math.min(1, Math.max(0, p(u))).toFixed(5).replace(/0+$/, '').replace(/\.$/, ''))
+  }
+  return `linear(${stops.join(', ')})`
+}
+
+/** Angular position of the model at normalised time u — exported for testing. */
+export function frictionProgress(u, spinUp = 0.05) {
+  const S = 1 - spinUp
+  if (u <= spinUp) return (u * u) / spinUp
+  const s = u - spinUp
+  return spinUp + 2 * s - (s * s) / S
+}

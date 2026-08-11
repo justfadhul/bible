@@ -37,9 +37,12 @@ That guarantee is testable because the rotation maths has an exact inverse.
 round-trip across every segment count, every index, arbitrary starting rotations and the full
 jitter range; the simulation asserts it again on every one of 57,200 spins.
 
-**Two stages.** Wheel 1 shows the categories that still have unread entries — categories with
-nothing left are removed from the wheel entirely, never greyed out, so it cannot land on a dead
-segment. Wheel 2 then shows that category's unread entries. About five seconds across both.
+**Two stages, 6.7 seconds.** Wheel 1 shows the categories that still have unread entries —
+categories with nothing left are removed from the wheel entirely, never greyed out, so it cannot
+land on a dead segment. It coasts for 3s, pauses half a second so you can read which category came
+up, then the faces cross-fade into that category's unread passages and the wheel carries on from
+exactly where it stopped for another 2.9s. It never resets between the stages: a real wheel cannot
+jump back a turn.
 
 **The draw is unbiased by construction.** `pickIndex()` uses `crypto.getRandomValues` with
 rejection sampling rather than `Math.random() * n`, so there is no modulo bias. Wheel 1 draws
@@ -172,6 +175,14 @@ topic.
 
 ## Motion and touch
 
+**The easing is derived, not tuned.** A wheel spun by hand is accelerated briefly and then
+coasts against bearing friction. Dry friction is a roughly constant retarding torque, so the
+deceleration is constant — ω(t) = ω₀ − αt — and the wheel *stops* rather than creeping
+asymptotically toward a halt. Integrating that gives the angle over time, which
+`frictionEasing()` samples into a CSS `linear()` curve. The hand-tuned bezier it replaced was 95%
+travelled by the halfway mark, which is why the spin felt like it arrived and then loitered;
+constant friction is 74% at halfway and still visibly turning at six seconds.
+
 The disc is the only thing that rotates, and it rotates as a wrapper `<div>` rather than an SVG
 `<g>`. Rotating a group makes the browser re-rasterise two dozen glyphs every frame; rotating a
 div promotes the disc to one composited layer the compositor can spin without touching the main
@@ -210,7 +221,7 @@ These are measured, not assumed — see the audit results below.
 |---|---|
 | Catalog contract | 286 entries, 15 categories, ids 1–286 unique and contiguous, no duplicate topics or references |
 | No duplicated content | 26 source files scanned against 1,179 catalog strings — clean |
-| Unit tests | 96 passing |
+| Unit tests | 101 passing |
 | Simulation | 200 playthroughs × 286 spins = 57,200 spins; every run produced all 286 entries with zero repeats; the 287th spin returned the completion state every time; 725,735 dead-segment checks and 114,400 landing checks all held |
 
 Browser checks (Chromium at 380px), all passing:
@@ -221,6 +232,8 @@ Browser checks (Chromium at 380px), all passing:
 - Export → reset → import restores byte-identical state, including notes with quotes and newlines.
 - Reduced motion reveals in ~370ms with no spin.
 - Spin is keyboard-reachable, announced, and focus lands on the result.
+- The spin measures 6.70s of wheel travel (6.96s to the card appearing), decelerating throughout,
+  with 71 detents that widen from 65ms apart early to 95ms apart late.
 - The spin still completes with `transitionend` suppressed entirely — a watchdog advances each stage
   if the browser swallows the event, so backgrounding the tab mid-spin cannot strand the wheel.
 - The spin button sits at y=592–648 in a 667px-tall viewport, inside the one-handed thumb zone.

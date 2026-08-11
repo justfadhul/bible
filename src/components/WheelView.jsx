@@ -15,11 +15,19 @@ import { TOTAL } from '../lib/catalog.js'
 import { usePrefersReducedMotion } from '../hooks/useMedia.js'
 import * as haptics from '../lib/haptics.js'
 
-// About five seconds of travel across both stages, with a beat between them.
-const STAGE_1_MS = 2500
-const HANDOVER_MS = 380
-const STAGE_2_MS = 2000
-const SETTLE_MS = 260
+/**
+ * 6.7 seconds, end to end. Long enough that the wheel is genuinely coasting
+ * rather than snapping to an answer, and long enough for the detents to space
+ * out audibly as it slows.
+ *
+ * The beat between the stages is not dead time — it is the moment you read
+ * which category came up, before the wheel becomes that category's passages.
+ */
+const STAGE_1_MS = 3000
+const HANDOVER_MS = 500
+const STAGE_2_MS = 2900
+const SETTLE_MS = 300
+export const TOTAL_SPIN_MS = STAGE_1_MS + HANDOVER_MS + STAGE_2_MS + SETTLE_MS // 6700
 
 const toCategorySegments = (cats) => cats.map((c) => ({ key: c.id, label: c.name, color: c.color }))
 const toEntrySegments = (entries, color) =>
@@ -80,28 +88,23 @@ export default function WheelView({ completedIds, onLanded, onAnnounce, exhauste
       if (stage === 'stage1') {
         setPhase('handover')
         onAnnounce?.(`${plan.category.name}. Now choosing the passage.`)
+        // Swap the faces mid-fade, then carry straight on from where the wheel
+        // already is. Resetting to zero would make the disc jump back a turn
+        // between the stages, which is the one thing a real wheel cannot do.
+        after(200, () => setSpunSegments(toEntrySegments(plan.entries, plan.category.color)))
         after(HANDOVER_MS, () => {
-          // Re-seat at zero with no transition and swap in the entries, then
-          // start stage 2 on the next frame — otherwise the browser
-          // interpolates between two unrelated wheels.
-          setDuration(0)
-          setRotation(0)
-          setSpunSegments(toEntrySegments(plan.entries, plan.category.color))
-          requestAnimationFrame(() =>
-            requestAnimationFrame(() => {
-              setDuration(STAGE_2_MS)
-              setPhase('stage2')
-              setRotation(
-                computeFinalRotation({
-                  targetIndex: plan.entryIndex,
-                  count: plan.entries.length,
-                  turns: 3,
-                  jitter: randomJitter(),
-                }),
-              )
-              after(STAGE_2_MS + 600, () => settle('stage2'))
+          setDuration(STAGE_2_MS)
+          setPhase('stage2')
+          setRotation((current) =>
+            computeFinalRotation({
+              current,
+              targetIndex: plan.entryIndex,
+              count: plan.entries.length,
+              turns: 6,
+              jitter: randomJitter(),
             }),
           )
+          after(STAGE_2_MS + 600, () => settle('stage2'))
         })
         return
       }
@@ -148,7 +151,7 @@ export default function WheelView({ completedIds, onLanded, onAnnounce, exhauste
         current,
         targetIndex: plan.categoryIndex,
         count: plan.categories.length,
-        turns: 4,
+        turns: 7,
         jitter: randomJitter(),
       }),
     )
@@ -172,6 +175,7 @@ export default function WheelView({ completedIds, onLanded, onAnnounce, exhauste
           segments={segments}
           rotation={rotation}
           durationMs={duration}
+          dimmed={phase === 'handover'}
           onSettled={() => settle(phase)}
           onTick={haptics.tick}
           hubLabel={exhausted ? '✓' : remaining}

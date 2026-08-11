@@ -8,6 +8,8 @@ import {
   pointerAngle,
   inkOn,
   shade,
+  frictionEasing,
+  frictionProgress,
 } from './wheel.js'
 
 /** Deterministic LCG so failures are reproducible. */
@@ -125,5 +127,54 @@ describe('colour helpers', () => {
     expect(shade('#808080', 1)).toBe('#ffffff')
     expect(shade('#808080', -1)).toBe('#000000')
     expect(shade('#C2410C', 0)).toBe('#c2410c')
+  })
+})
+
+describe('the spin follows a wheel under constant friction', () => {
+  const p = (u) => frictionProgress(u)
+
+  it('starts at rest and finishes exactly on target', () => {
+    expect(p(0)).toBe(0)
+    expect(p(1)).toBeCloseTo(1, 12)
+  })
+
+  it('only ever moves forwards', () => {
+    let prev = -1
+    for (let i = 0; i <= 500; i++) {
+      const v = p(i / 500)
+      expect(v).toBeGreaterThanOrEqual(prev)
+      prev = v
+    }
+  })
+
+  it('accelerates briefly, then decelerates for the rest of the spin', () => {
+    const speed = (u) => (p(u + 0.001) - p(u)) / 0.001
+    // Spin-up: still gaining speed.
+    expect(speed(0.04)).toBeGreaterThan(speed(0.01))
+    // Coasting: losing it, steadily, all the way down.
+    const marks = [0.1, 0.3, 0.5, 0.7, 0.9, 0.98]
+    for (let i = 1; i < marks.length; i++) {
+      expect(speed(marks[i])).toBeLessThan(speed(marks[i - 1]))
+    }
+    // And it actually stops rather than creeping.
+    expect(speed(0.999)).toBeLessThan(0.02)
+  })
+
+  it('spreads the journey out instead of front-loading it', () => {
+    // The old hand-tuned curve was 95% done at the halfway mark, which left
+    // the second half looking stalled. Constant friction is far more even.
+    expect(p(0.5)).toBeGreaterThan(0.6)
+    expect(p(0.5)).toBeLessThan(0.8)
+    expect(p(0.25)).toBeGreaterThan(0.3)
+    expect(p(0.25)).toBeLessThan(0.5)
+  })
+
+  it('emits a linear() easing the browser can parse', () => {
+    const e = frictionEasing()
+    expect(e).toMatch(/^linear\(0, [\d., ]+1\)$/)
+    const stops = e.slice(7, -1).split(',').map((n) => Number(n))
+    expect(stops[0]).toBe(0)
+    expect(stops[stops.length - 1]).toBe(1)
+    for (let i = 1; i < stops.length; i++) expect(stops[i]).toBeGreaterThanOrEqual(stops[i - 1])
   })
 })

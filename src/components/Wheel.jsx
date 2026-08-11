@@ -24,7 +24,15 @@
  * character budget until every label sits inside its band.
  */
 import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { segmentPath, segmentStart, stepFor, labelTransform, shade, inkOn } from '../lib/wheel.js'
+import {
+  segmentPath,
+  segmentStart,
+  stepFor,
+  labelTransform,
+  shade,
+  inkOn,
+  frictionEasing,
+} from '../lib/wheel.js'
 import { layoutLabels } from '../lib/label.js'
 
 const CX = 50
@@ -40,8 +48,8 @@ const TEXT_R = (TEXT_START_R + TEXT_END_R) / 2
 const INITIAL_CHAR_W = 0.55
 const MAX_FIT_PASSES = 4
 
-/** Fast off the line, long slow settle — the shape a heavy wheel actually has. */
-export const SPIN_EASING = 'cubic-bezier(0.08, 0.72, 0.1, 1)'
+/** Constant-friction deceleration — see frictionEasing() for the derivation. */
+export const SPIN_EASING = frictionEasing()
 /** A degree of overshoot, then back. Well inside the narrowest segment (15.6°). */
 const OVERSHOOT_DEG = 1.1
 /** Two detents closer together than this cannot be felt apart. */
@@ -120,18 +128,22 @@ export default memo(function Wheel({
       return
     }
 
-    const anim = el.animate(
-      [
-        { transform: `rotate(${from}deg)`, easing: SPIN_EASING },
-        {
-          transform: `rotate(${rotation + OVERSHOOT_DEG}deg)`,
-          offset: 0.9,
-          easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
-        },
-        { transform: `rotate(${rotation}deg)` },
-      ],
-      { duration: durationMs, fill: 'forwards' },
-    )
+    let anim
+    const keyframes = (easing) => [
+      { transform: `rotate(${from}deg)`, easing },
+      {
+        transform: `rotate(${rotation + OVERSHOOT_DEG}deg)`,
+        offset: 0.94,
+        easing: 'cubic-bezier(0.33, 0, 0.2, 1)',
+      },
+      { transform: `rotate(${rotation}deg)` },
+    ]
+    try {
+      anim = el.animate(keyframes(SPIN_EASING), { duration: durationMs, fill: 'forwards' })
+    } catch {
+      // A browser without linear() easing still gets a decent deceleration.
+      anim = el.animate(keyframes('cubic-bezier(0.17, 0.6, 0.3, 1)'), { duration: durationMs, fill: 'forwards' })
+    }
     animRef.current = anim
 
     // Sample the real matrix for detents rather than re-deriving the easing.
