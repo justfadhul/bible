@@ -18,6 +18,7 @@ import { getTheme, saveTheme, applyTheme, resolvedTheme } from './lib/theme.js'
 import { nameFromEmail } from './lib/readers.js'
 import { APP_NAME } from './lib/brand.js'
 import * as haptics from './lib/haptics.js'
+import { warm as warmPassages } from './lib/passages.js'
 import {
   completedIds as idsOf,
   isExhausted,
@@ -98,6 +99,12 @@ export default function App() {
   useEffect(() => {
     applyTheme(theme)
   }, [theme])
+
+  // Fetch the passage text during the first idle moment, so that a spin lands
+  // on something already loaded rather than on a spinner.
+  useEffect(() => {
+    warmPassages()
+  }, [])
 
   useEffect(() => {
     const onKey = (e) => {

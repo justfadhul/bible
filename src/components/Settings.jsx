@@ -12,7 +12,7 @@ import Readers from './Readers.jsx'
 import Sharing from './Sharing.jsx'
 import { normalizeState } from '../lib/storage.js'
 import { TOTAL, meta } from '../lib/catalog.js'
-import { APP_NAME } from '../lib/brand.js'
+import { APP_NAME, WEB } from '../lib/brand.js'
 
 function Group({ header, footer, children, className = '' }) {
   return (
@@ -252,6 +252,10 @@ export default function Settings({ state, sync, theme, onTheme, onImport, onRese
 
       <p className="px-1 pb-2 text-xs leading-relaxed text-ink-2">
         {state.completed.length} of {TOTAL} read · catalog v{meta.version}
+        <br />
+        {/* People reasonably want to know which translation they are reading,
+            even though this one asks for no credit. */}
+        Scripture from the {WEB.name}. {WEB.note}
         <br />
         {sync?.pair
           ? 'History is saved on this device and in your shared Supabase project, so either of you can read it from anywhere.'

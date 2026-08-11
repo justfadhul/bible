@@ -518,12 +518,17 @@ export function AvatarStack({ readers, size = 26, max = 5 }) {
  * spinner is the truthful thing. It has no aria presence at all; the region it
  * fills carries the aria-busy and the words.
  */
-export function Skeleton({ className = '', rounded = 'rounded-r3' }) {
+export function Skeleton({ className = '', rounded = 'rounded-r3', style }) {
   return (
     <span
       aria-hidden="true"
       className={`block ${rounded} ${className}`}
-      style={{ background: 'var(--surface-inset)', boxShadow: 'var(--inset)', animation: 'breathe 1.6s var(--ease) infinite' }}
+      style={{
+        background: 'var(--surface-inset)',
+        boxShadow: 'var(--inset)',
+        animation: 'breathe 1.6s var(--ease) infinite',
+        ...style,
+      }}
     />
   )
 }

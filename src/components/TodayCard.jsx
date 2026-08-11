@@ -6,6 +6,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { Avatar, Badge, Button, Card, Field, Icon, ICONS, Inset } from './ui.jsx'
+import Passage from './Passage.jsx'
 import { displayName } from '../lib/readers.js'
 import * as haptics from '../lib/haptics.js'
 import { getCategory } from '../lib/catalog.js'
@@ -140,7 +141,12 @@ export default function TodayCard({
         </p>
       </Card>
 
-      <Card className={`px-5 py-4 ${r} reveal-delay-1`}>
+      {/* The passage itself, before the question about it — you cannot discuss
+          what you have not read, and the old order sent people out of the app
+          to find the text and back again to find the question. */}
+      <Passage entryId={entry.id} reference={entry.reference} className={`${r} reveal-delay-1`} />
+
+      <Card className={`px-5 py-4 ${r} reveal-delay-2`}>
         <p className="eyebrow">To discuss</p>
         <p className="mt-2.5 font-serif text-xl leading-snug">{entry.question}</p>
       </Card>
@@ -155,7 +161,7 @@ export default function TodayCard({
         </Card>
       )}
 
-      <Card className={`px-4 py-4 ${r} reveal-delay-2`}>
+      <Card className={`px-4 py-4 ${r} reveal-delay-3`}>
         <p className="eyebrow">Read by</p>
         <ul className="mt-2.5 space-y-1.5">
           {readers.map((reader, i) => {

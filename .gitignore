@@ -33,3 +33,8 @@ dist/
 .load.mjs
 .readers.mjs
 .notes.mjs
+
+# downloaded source text for scripts/build-passages.mjs
+.web-cache/
+.bible.mjs
+.dbg3.mjs

@@ -9,6 +9,7 @@ import { useMemo, useState } from 'react'
 import { Avatar, AvatarStack, Card, EmptyState, Field, Icon, ICONS, Inset, Segmented, Skeleton } from './ui.jsx'
 import { displayName } from '../lib/readers.js'
 import SharedProgress from './SharedProgress.jsx'
+import Passage from './Passage.jsx'
 import { CATEGORIES, TOTAL, getEntry, getCategory } from '../lib/catalog.js'
 import { formatShortDate } from '../lib/date.js'
 import { archiveStats, readerProgress } from '../lib/stats.js'
@@ -113,6 +114,9 @@ function Row({ row, readers, ground, last }) {
         <div className="space-y-2.5 px-4 pb-4">
           <p className="font-serif text-sm leading-relaxed text-ink-2">{entry.hook}</p>
           <p className="font-serif text-sm leading-relaxed">{entry.question}</p>
+          {/* Re-reading is the point of an archive, so the text is here too
+              rather than only on the day it came up. */}
+          <Passage entryId={entry.id} reference={entry.reference} level={2} />
           {notes.map(({ reader, index, text }) => (
             <div key={reader.id}>
               <div className="mb-1.5 flex items-center gap-2">

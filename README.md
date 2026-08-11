@@ -178,6 +178,60 @@ and nobody can overwrite anyone else's.
 Removing is only ever offered for a leftover local reader, and takes their ticks with it —
 somebody with an account leaves by leaving the group, on their own device.
 
+## The Bible is in the app
+
+The wheel used to hand you a reference and expect you to go and find it. That
+sent people out of the app at the exact moment the app had done its job, so the
+text is now on the page — under today's reading and inside every archive row.
+
+**Translation: the World English Bible.** Public domain worldwide, with no
+attribution requirement and nobody to ask, which is the only reason a
+translation can live inside a repo at all. It is a modern-English revision of
+the 1901 ASV, so it reads like this century without the KJV's archaisms or the
+BBE's deliberately restricted vocabulary. Credited on screen anyway, because
+people want to know what they are reading.
+
+**Only the 286 passages are bundled**, not a whole Bible: 127,000 words,
+~240KB gzipped, against roughly 10MB for the lot. It is a dynamic import, so
+the app boots without it and the chunk is fetched during the first idle moment
+after mount — by the time a spin lands, it is almost always already there. The
+filename is content-hashed and served immutable for a year, so that fetch
+happens once ever.
+
+Fetching from a Bible API was the obvious alternative and the wrong one: the
+app works offline, its CSP admits exactly one host, and a network round trip
+between somebody and the passage they just spun for is precisely the wait worth
+removing.
+
+**Structure, not just verses.** The source carries the paragraph and poetry
+markup, so a narrative reads as prose with quiet superscript verse numbers, and
+a psalm keeps its line breaks with the number only on the line each verse
+starts on — the way it is printed in a Bible. Chapter numbers appear only where
+a passage crosses a chapter boundary, which is where a verse 1 following a
+verse 10 would otherwise look like a bug.
+
+**References are parsed, not pattern-matched by hand.** `src/lib/reference.js`
+resolves the eleven distinct shapes the catalog uses — `Job 2:11-13`,
+`Proverbs 27`, `Numbers 13-14`, `1 John 1:5-2:6`, a bare book name, two ranges
+separated by a comma — into a list of spans. It returns `null` rather than
+guessing, because a half-parsed reference shows the *wrong* verses, which is
+worse than showing none.
+
+**Two verses genuinely are not there.** Acts 8:37 and 15:34 are in the King
+James numbering but not in the manuscripts the WEB follows, so the source
+carries the verse number with nothing in it. The build distinguishes that from
+a real gap (a node exists and is empty, versus no node at all), and the app
+says so on screen rather than leaving an unexplained jump from 36 to 38.
+
+```bash
+node scripts/build-passages.mjs   # needs network; run when the catalog changes
+npm run check-passages            # offline; runs on every check
+```
+
+`check-passages` is the one that matters day to day: it catches a reference
+edited in the catalog whose text was never rebuilt, by comparing the chapters
+and opening verse of every stored passage against what its reference asks for.
+
 ## Sharing a history between two devices (Supabase)
 
 Optional. With no project configured the app is exactly what it was — local,
