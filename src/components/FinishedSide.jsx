@@ -6,7 +6,7 @@
  * colour, and whatever was written about it.
  */
 import { useMemo, useState } from 'react'
-import { AvatarStack, Card, EmptyState, Field, Icon, ICONS, Inset, Segmented } from './ui.jsx'
+import { AvatarStack, Card, EmptyState, Field, Icon, ICONS, Inset, Segmented, Skeleton } from './ui.jsx'
 import SharedProgress from './SharedProgress.jsx'
 import { CATEGORIES, TOTAL, getEntry, getCategory } from '../lib/catalog.js'
 import { formatShortDate } from '../lib/date.js'
@@ -121,7 +121,7 @@ function Row({ row, readers, ground, last }) {
   )
 }
 
-export default function FinishedSide({ state, onReadBy }) {
+export default function FinishedSide({ state, onReadBy, pulling = false }) {
   const [query, setQuery] = useState('')
   const [lens, setLens] = useState('readers')
   const [category, setCategory] = useState('all')
@@ -242,7 +242,21 @@ export default function FinishedSide({ state, onReadBy }) {
         {filtering ? `${filtered.length} of ${rows.length} shown` : `${rows.length} in the archive`}
       </p>
 
-      {rows.length === 0 ? (
+      {rows.length === 0 && pulling ? (
+        // Nothing local yet AND a pull in flight: "nothing here yet" would be
+        // a claim we cannot make, since the shared history is still on its way.
+        <Card className="space-y-4 px-4 py-4" aria-busy="true">
+          <p className="text-sm text-ink-2" role="status">
+            Bringing in the shared history…
+          </p>
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="space-y-2" style={{ opacity: 1 - i * 0.25 }}>
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-3 w-1/3" />
+            </div>
+          ))}
+        </Card>
+      ) : rows.length === 0 ? (
         <EmptyState
           title="Nothing here yet"
           body="Spin the wheel and the first passage will land on this page."

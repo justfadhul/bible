@@ -23,8 +23,13 @@ function ReaderRow({ reader, index, isYou, canRemove, onUpdate, onRemove, onPhot
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
+          disabled={busyPhoto}
           className="relative rounded-full"
-          aria-label={`Change ${displayName(reader, index)}'s photo`}
+          aria-label={
+            busyPhoto
+              ? `Uploading ${displayName(reader, index)}'s photo`
+              : `Change ${displayName(reader, index)}'s photo`
+          }
         >
           <Avatar reader={reader} index={index} size={48} />
           <span
@@ -101,11 +106,22 @@ function ReaderRow({ reader, index, isYou, canRemove, onUpdate, onRemove, onPhot
           </div>
 
           <div className="flex gap-2.5">
-            <Button variant="secondary" className="flex-1" onClick={() => fileRef.current?.click()}>
-              {reader.avatarUrl ? 'Change photo' : 'Add photo'}
+            <Button
+              variant="secondary"
+              className="flex-1"
+              disabled={busyPhoto}
+              busy={busyPhoto}
+              onClick={() => fileRef.current?.click()}
+            >
+              {busyPhoto ? 'Uploading' : reader.avatarUrl ? 'Change photo' : 'Add photo'}
             </Button>
             {reader.avatarUrl && (
-              <Button variant="secondary" className="flex-1" onClick={() => onUpdate(reader.id, { avatarUrl: null })}>
+              <Button
+                variant="secondary"
+                className="flex-1"
+                disabled={busyPhoto}
+                onClick={() => onUpdate(reader.id, { avatarUrl: null })}
+              >
                 Remove photo
               </Button>
             )}

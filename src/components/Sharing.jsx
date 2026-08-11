@@ -132,6 +132,7 @@ export default function Sharing({ sync }) {
                 variant="secondary"
                 className="w-full"
                 disabled={busy || code.trim().length < 4}
+                busy={busy}
               >
                 Join with a code
               </Button>
@@ -146,6 +147,7 @@ export default function Sharing({ sync }) {
 
   /* ── paired ── */
   const waiting = sync.pair.member_count < 2
+  const syncing = sync.status === 'syncing' || sync.status === 'connecting'
 
   return (
     <>
@@ -190,10 +192,22 @@ export default function Sharing({ sync }) {
         )}
 
         <div className="mt-4 flex gap-2.5">
-          <Button variant="secondary" className="flex-1" onClick={sync.resync}>
-            Sync now
+          <Button
+            variant="secondary"
+            className="flex-1"
+            disabled={syncing}
+            busy={syncing}
+            onClick={sync.resync}
+          >
+            {syncing ? 'Syncing' : 'Sync now'}
           </Button>
-          <Button variant="secondary" className="flex-1" onClick={() => run(sync.leavePair)}>
+          <Button
+            variant="secondary"
+            className="flex-1"
+            disabled={busy || syncing}
+            busy={busy}
+            onClick={() => run(sync.leavePair)}
+          >
             Leave pair
           </Button>
         </div>

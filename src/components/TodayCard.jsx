@@ -39,21 +39,38 @@ export default function TodayCard({
   const readCount = row?.readBy?.length ?? 0
   const [draft, setDraft] = useState(row?.notes ?? '')
   const [copied, setCopied] = useState(false)
+  // 'Saved as you type' is a promise; this is the evidence. Without it there
+  // is no moment where the note visibly stops being unsaved, which is exactly
+  // when people copy their text out somewhere safer before closing the tab.
+  const [saved, setSaved] = useState('idle') // idle | pending | done
   const debounce = useRef(null)
+  const savedFor = useRef(null)
   const headingRef = useRef(null)
 
   useEffect(() => {
     setDraft(row?.notes ?? '')
   }, [entry.id, row?.notes])
 
-  useEffect(() => () => clearTimeout(debounce.current), [])
+  useEffect(
+    () => () => {
+      clearTimeout(debounce.current)
+      clearTimeout(savedFor.current)
+    },
+    [],
+  )
 
   // Notes are local while typing and flushed on a short debounce, so the card
   // stays responsive and storage is not written on every keystroke.
   const onDraft = (value) => {
     setDraft(value)
+    setSaved('pending')
     clearTimeout(debounce.current)
-    debounce.current = setTimeout(() => onNotes(value), 350)
+    debounce.current = setTimeout(() => {
+      onNotes(value)
+      setSaved('done')
+      clearTimeout(savedFor.current)
+      savedFor.current = setTimeout(() => setSaved('idle'), 1800)
+    }, 350)
   }
 
   // Move focus to the result so a keyboard or screen-reader user lands on it.
@@ -187,7 +204,9 @@ export default function TodayCard({
           as="textarea"
           id="notes"
           label="Notes"
-          hint="Saved as you type."
+          hint={
+            saved === 'pending' ? 'Saving…' : saved === 'done' ? 'Saved.' : 'Saved as you type.'
+          }
           value={draft}
           onChange={(e) => onDraft(e.target.value)}
           placeholder="What came up when you talked about it…"

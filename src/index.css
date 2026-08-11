@@ -270,6 +270,13 @@ body {
   to { transform: rotate(360deg); }
 }
 
+/* Placeholders breathe rather than shimmer: a sweep would be a second moving
+   thing on a screen whose only motion is meant to be the wheel. */
+@keyframes breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .reveal,
   .reveal-delay-1,

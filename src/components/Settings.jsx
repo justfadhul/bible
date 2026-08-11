@@ -91,6 +91,7 @@ export default function Settings({ state, sync, theme, onTheme, onImport, onRese
   const fileRef = useRef(null)
   const [status, setStatus] = useState(null)
   const [pendingReset, setPendingReset] = useState(false)
+  const [importing, setImporting] = useState(false)
   const [confirmText, setConfirmText] = useState('')
 
   const exportJSON = () => {
@@ -109,6 +110,7 @@ export default function Settings({ state, sync, theme, onTheme, onImport, onRese
 
   const importJSON = async (file) => {
     if (!file) return
+    setImporting(true)
     try {
       const text = await file.text()
       const { state: next, problems } = normalizeState(JSON.parse(text))
@@ -122,6 +124,7 @@ export default function Settings({ state, sync, theme, onTheme, onImport, onRese
     } catch (err) {
       setStatus({ kind: 'error', text: `Could not read that file: ${err.message}` })
     } finally {
+      setImporting(false)
       if (fileRef.current) fileRef.current.value = ''
     }
   }
@@ -177,11 +180,17 @@ export default function Settings({ state, sync, theme, onTheme, onImport, onRese
         footer="Export writes your history to a file. Import replaces everything currently stored, so export first if you might want it back."
         className="flex gap-2.5"
       >
-        <Button variant="secondary" className="flex-1" onClick={exportJSON}>
+        <Button variant="secondary" className="flex-1" disabled={importing} onClick={exportJSON}>
           Export JSON
         </Button>
-        <Button variant="secondary" className="flex-1" onClick={() => fileRef.current?.click()}>
-          Import JSON
+        <Button
+          variant="secondary"
+          className="flex-1"
+          disabled={importing}
+          busy={importing}
+          onClick={() => fileRef.current?.click()}
+        >
+          {importing ? 'Reading' : 'Import JSON'}
         </Button>
         {/* Driven by the Import button above; hidden rather than styled. */}
         <input

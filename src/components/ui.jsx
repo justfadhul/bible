@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { displayName, initials, readerColor } from '../lib/readers.js'
 
 /**
@@ -439,27 +439,49 @@ export function Alert({ children, tone = 'accent', icon = ICONS.info }) {
 export function Avatar({ reader, index = 0, size = 40, ring = false, className = '' }) {
   const name = displayName(reader, index)
   const src = reader?.avatarUrl
+  // A photo fetched from storage arrives whenever it arrives. Until it does the
+  // initials hold the space and the photo cross-fades in over them, so a list
+  // of readers does not flicker its way into place. A URL that fails — an
+  // expired object, an offline phone — falls back to the initials for good
+  // rather than leaving a broken-image glyph where a face should be.
+  const [state, setState] = useState('loading') // loading | shown | failed
+  const idRef = useRef(src)
+  if (idRef.current !== src) {
+    idRef.current = src
+    if (state !== 'loading') setState('loading')
+  }
+  const showPhoto = src && state !== 'failed'
+
   return (
     <span
       className={`relative inline-grid shrink-0 place-items-center overflow-hidden rounded-full ${className}`}
       style={{
         width: size,
         height: size,
-        background: src ? 'var(--surface-inset)' : readerColor(reader?.id ?? index),
+        background: readerColor(reader?.id ?? index),
         boxShadow: ring ? 'var(--e2), 0 0 0 2px var(--surface-raised)' : 'var(--e2)',
       }}
       title={name}
     >
-      {src ? (
-        <img src={src} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
-      ) : (
-        <span
-          className="font-semibold text-white select-none"
-          style={{ fontSize: Math.round(size * 0.36), letterSpacing: '0.02em' }}
-          aria-hidden="true"
-        >
-          {initials(reader, index)}
-        </span>
+      <span
+        className="font-semibold text-white select-none"
+        style={{ fontSize: Math.round(size * 0.36), letterSpacing: '0.02em' }}
+        aria-hidden="true"
+      >
+        {initials(reader, index)}
+      </span>
+      {showPhoto && (
+        <img
+          key={src}
+          src={src}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          onLoad={() => setState('shown')}
+          onError={() => setState('failed')}
+          className="absolute inset-0 h-full w-full object-cover"
+          style={{ opacity: state === 'shown' ? 1 : 0, transition: 'opacity .3s var(--ease)' }}
+        />
       )}
     </span>
   )
@@ -485,6 +507,24 @@ export function AvatarStack({ readers, size = 26, max = 5 }) {
         </span>
       )}
     </span>
+  )
+}
+
+/**
+ * A shape standing in for something still on its way.
+ *
+ * Only honest where the eventual content really is a list of similar rows of a
+ * roughly known size — otherwise it is a lie about what is coming, and a
+ * spinner is the truthful thing. It has no aria presence at all; the region it
+ * fills carries the aria-busy and the words.
+ */
+export function Skeleton({ className = '', rounded = 'rounded-r3' }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`block ${rounded} ${className}`}
+      style={{ background: 'var(--surface-inset)', boxShadow: 'var(--inset)', animation: 'breathe 1.6s var(--ease) infinite' }}
+    />
   )
 }
 

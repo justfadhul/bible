@@ -424,6 +424,7 @@ export default function App() {
         {view === 'finished' && (
           <FinishedSide
             state={state}
+            pulling={sync.status === 'syncing' || sync.status === 'connecting'}
             onReadBy={(entryId, readerId, value) => commit(setReadBy(state, entryId, readerId, value))}
           />
         )}

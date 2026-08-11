@@ -30,3 +30,4 @@ dist/
 .code.mjs
 .prog.mjs
 .dbg2.mjs
+.load.mjs
