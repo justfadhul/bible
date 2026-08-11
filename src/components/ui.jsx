@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { displayName, initials, readerColor } from '../lib/readers.js'
 
 /**
@@ -42,6 +43,22 @@ export const ICONS = {
   warning: 'M12 4 2.8 20h18.4L12 4ZM12 10v4.4M12 17.2v.4',
   chevron: 'M8.5 5 15.5 12l-7 7',
   empty: 'M4 5h16v14H4zM8 9h8M8 13h5M17.5 17.5 21 21',
+}
+
+/** The wheel as a mark: six segments and a pointer, drawn from the ink tokens. */
+export function Brandmark({ className = 'size-16' }) {
+  return (
+    <svg viewBox="0 0 64 64" className={className} aria-hidden="true">
+      <g transform="translate(32 34)">
+        <circle r="21.5" fill="none" stroke="var(--hairline-strong)" strokeWidth="1.5" />
+        <path d="M0 -19 A19 19 0 0 1 16.5 9.5 L0 0 Z" fill="var(--accent)" />
+        <path d="M16.5 9.5 A19 19 0 0 1 -16.5 9.5 L0 0 Z" fill="var(--ink-3)" />
+        <path d="M-16.5 9.5 A19 19 0 0 1 0 -19 L0 0 Z" fill="var(--ink-2)" />
+        <circle r="6.5" fill="var(--surface-raised)" stroke="var(--hairline-strong)" strokeWidth="1.2" />
+      </g>
+      <path d="M32 5.5 L27.5 14 L36.5 14 Z" fill="var(--ink)" />
+    </svg>
+  )
 }
 
 /* ── Buttons ───────────────────────────────────────────────────────────── */
@@ -125,6 +142,52 @@ export function Spinner({ size = 20 }) {
         />
       ))}
     </svg>
+  )
+}
+
+/**
+ * What the shared history is doing, in the header.
+ *
+ * Only ever shown while it has something to say. A permanent "up to date" is
+ * noise on a screen whose job is one passage a day, so success appears for a
+ * couple of seconds after a real sync and then gets out of the way; only a
+ * problem stays put. Not a button — there is nothing to press, and making it
+ * one would put a 44px target in the header for no reason.
+ */
+export function SyncDot({ status, lastSyncedAt }) {
+  const [justSynced, setJustSynced] = useState(false)
+  useEffect(() => {
+    if (!lastSyncedAt) return
+    setJustSynced(true)
+    const t = setTimeout(() => setJustSynced(false), 2200)
+    return () => clearTimeout(t)
+  }, [lastSyncedAt])
+
+  const working = status === 'syncing' || status === 'connecting'
+  const failed = status === 'error'
+  if (!working && !failed && !justSynced) return null
+
+  return (
+    <span
+      role="status"
+      className="flex items-center gap-1.5 rounded-r5 px-2.5 py-1 text-2xs font-semibold tracking-[0.06em] uppercase"
+      style={{
+        background: 'var(--surface-inset)',
+        boxShadow: 'var(--inset)',
+        color: failed ? 'var(--danger)' : 'var(--ink-2)',
+      }}
+    >
+      {working ? (
+        <Spinner size={12} />
+      ) : (
+        <span
+          aria-hidden="true"
+          className="size-1.5 rounded-full"
+          style={{ background: failed ? 'var(--danger)' : 'var(--ok)' }}
+        />
+      )}
+      {working ? 'Syncing' : failed ? 'Offline' : 'Saved'}
+    </span>
   )
 }
 
@@ -262,7 +325,7 @@ export function Checkbox({ checked, onChange, label, className = '' }) {
 
 /* ── Text field: inset well, accent ring on focus, danger ring on error ── */
 
-export function Field({ id, label, hint, error, icon, className = '', as = 'input', ...props }) {
+export function Field({ id, label, hint, error, icon, trailing, className = '', as = 'input', ...props }) {
   const As = as
   const ring = error ? 'var(--danger)' : 'var(--accent)'
   return (
@@ -279,11 +342,15 @@ export function Field({ id, label, hint, error, icon, className = '', as = 'inpu
         {icon && (
           <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-2">{icon}</span>
         )}
+        {/* A slot on the right for a control that belongs to the field itself —
+            a reveal toggle, a unit, a clear button. It sits inside the well so
+            it reads as part of the input rather than a button beside it. */}
+        {trailing && <span className="absolute top-1/2 right-1 -translate-y-1/2">{trailing}</span>}
         <As
           id={id}
           {...props}
           className={`w-full rounded-r3 bg-transparent px-3.5 py-3 text-[0.9375rem] placeholder:text-ink-2
-                      focus:outline-none ${icon ? 'pl-10' : ''} ${as === 'textarea' ? 'min-h-28 resize-y' : 'min-h-12'}`}
+                      focus:outline-none ${icon ? 'pl-10' : ''} ${trailing ? 'pr-13' : ''} ${as === 'textarea' ? 'min-h-28 resize-y' : 'min-h-12'}`}
           onFocus={(e) => {
             e.currentTarget.parentElement.style.boxShadow = `var(--inset), 0 0 0 2px ${ring}`
             props.onFocus?.(e)

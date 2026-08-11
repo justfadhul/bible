@@ -11,7 +11,7 @@ import TodayCard from './components/TodayCard.jsx'
 import FinishedSide from './components/FinishedSide.jsx'
 import Settings from './components/Settings.jsx'
 import AuthPage from './components/AuthPage.jsx'
-import { Alert, Button, Card, Icon, ICONS, Tabs } from './components/ui.jsx'
+import { Alert, Brandmark, Button, Card, Icon, ICONS, Spinner, SyncDot, Tabs } from './components/ui.jsx'
 import { getState, saveState, clearState, emptyState } from './lib/storage.js'
 import { useSync } from './hooks/useSync.js'
 import { getTheme, saveTheme, applyTheme, resolvedTheme } from './lib/theme.js'
@@ -246,6 +246,12 @@ export default function App() {
 
   const isDark = resolvedTheme(theme) === 'dark'
 
+  // Nothing can be decided until we know whether there is a session: signed in
+  // and signed out look identical for the first beat of every load, and
+  // guessing means a returning reader gets a flash of the sign-in page before
+  // their own history appears.
+  if (sync.enabled && !sync.ready) return <BootScreen />
+
   // Show the way in once: on a device with no session, no history, and no
   // record of having chosen to read locally. Anyone mid-way through a
   // catalog never sees it, session or not.
@@ -275,7 +281,10 @@ export default function App() {
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
         <div className="mx-auto flex max-w-lg items-center gap-3 px-4 pt-3 pb-2">
-          <h1 className="flex-1 font-serif text-xl font-semibold tracking-[-0.01em]">{APP_NAME}</h1>
+          <h1 className="font-serif text-xl font-semibold tracking-[-0.01em]">{APP_NAME}</h1>
+          <div className="flex flex-1 justify-start">
+            <SyncDot status={sync.status} lastSyncedAt={sync.lastSyncedAt} />
+          </div>
           <IconButton
             label={`Switch to ${isDark ? 'light' : 'dark'} appearance`}
             onClick={() => setTheme(isDark ? 'light' : 'dark')}
@@ -324,6 +333,26 @@ export default function App() {
       </header>
 
       <main ref={mainRef} className="mx-auto w-full max-w-lg flex-1 px-4 pt-5 pb-14">
+        {/* Raised by something that has already finished and unmounted — a new
+            password saving itself signs you in, which takes the form away. */}
+        {sync.notice && (
+          <div className="mb-5">
+            <Alert icon={ICONS.check}>
+              <div className="flex items-start justify-between gap-3">
+                <span>{sync.notice}</span>
+                <button
+                  type="button"
+                  onClick={sync.dismissNotice}
+                  aria-label="Dismiss"
+                  className="-my-1 -mr-1 shrink-0 rounded-r3 p-1 opacity-80"
+                >
+                  <Icon path="M6 6l12 12M18 6 6 18" size={18} />
+                </button>
+              </div>
+            </Alert>
+          </div>
+        )}
+
         {dev && (
           <div className="mb-5">
             <Alert icon={ICONS.warning}>
@@ -395,6 +424,42 @@ export default function App() {
         {view === 'finished' && <FinishedSide state={state} />}
       </main>
     </div>
+  )
+}
+
+/**
+ * The wait for a stored session to be read back.
+ *
+ * Usually a few frames, occasionally a network round trip when the token needs
+ * refreshing. So the mark appears at once — a painted ground that matches
+ * where you are going is not a loading screen, it is just the app opening —
+ * and the words only fade in after half a second, by which point the wait is
+ * long enough to be worth explaining. A spinner that flashes for 80ms reads as
+ * a glitch; one that never appears at all reads as a hang.
+ */
+function BootScreen() {
+  const [slow, setSlow] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setSlow(true), 500)
+    return () => clearTimeout(t)
+  }, [])
+  return (
+    <main className="grid min-h-dvh place-items-center bg-ground px-6" aria-busy="true">
+      <div className="text-center">
+        <div className="flex justify-center">
+          <Brandmark />
+        </div>
+        <h1 className="mt-5 font-serif text-3xl font-semibold tracking-[-0.02em]">{APP_NAME}</h1>
+        <p
+          className="mt-3 flex items-center justify-center gap-2 text-sm text-ink-2"
+          style={{ opacity: slow ? 1 : 0, transition: 'opacity .4s var(--ease)' }}
+          role="status"
+        >
+          <Spinner size={16} />
+          {slow ? 'Opening your reading…' : ''}
+        </p>
+      </div>
+    </main>
   )
 }
 

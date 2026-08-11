@@ -34,24 +34,61 @@ export const supabase = remoteConfigured
 /* ── auth ──────────────────────────────────────────────────────────────── */
 
 /**
- * Emails a six-digit code.
+ * ── Sign-in is by email and password ───────────────────────────────────────
  *
- * Supabase mints that code for every passwordless sign-in whether or not
- * anything displays it — the link and the code are two renderings of the same
- * token. Which one arrives is decided entirely by the project's email
- * templates, which must contain `{{ .Token }}`; see AUTH.md.
- *
- * There is deliberately no `emailRedirectTo`, because there is nowhere to
- * redirect to. That is most of the point: a code cannot be opened on the wrong
- * device, cannot land on a preview deployment instead of the real one, cannot
- * be burned by a corporate link scanner following it first, and needs no
- * allow-list of redirect URLs to be kept in step with every new domain.
+ * The six-digit code did not go away; it stopped being the front door and
+ * became the two things a password account genuinely needs an email for:
+ * proving the address is real, and getting back in after forgetting it.
+ * Neither of those is a link, so none of the link problems come back — no
+ * redirect allow-list, no wrong-device opens, no token spent by a mail
+ * scanner following it first.
  */
-export async function sendCode(email) {
+
+const need = () => {
   if (!supabase) throw new Error('No Supabase project is configured.')
+}
+
+/**
+ * Creates the account.
+ *
+ * Whether a session comes back depends on one project setting. With "Confirm
+ * email" off, Supabase hands over a session immediately. With it on — which is
+ * the default, and the safer choice — it returns a user and no session until
+ * the address is proved, so the caller is told to go and collect a code. Both
+ * are normal, so this reports which happened rather than treating one as a
+ * failure.
+ */
+export async function signUp(email, password) {
+  need()
+  const { data, error } = await supabase.auth.signUp({ email: email.trim(), password })
+  if (error) throw error
+  return { session: data.session ?? null, needsConfirmation: !data.session }
+}
+
+export async function signIn(email, password) {
+  need()
+  const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
+  if (error) throw error
+  return data.session ?? null
+}
+
+/**
+ * Emails a six-digit code — for confirming a new address, or for getting back
+ * into an account whose password is gone.
+ *
+ * `shouldCreateUser` is false because both callers already know the address
+ * should exist. Left true, a typo in the forgotten-password box would quietly
+ * mint a second empty account and send a code to it, and the resulting "it let
+ * me in but my history is gone" is a genuinely horrible thing to debug.
+ *
+ * The digits only arrive if the project's email templates render
+ * `{{ .Token }}`; see AUTH.md.
+ */
+export async function sendCode(email, { createUser = false } = {}) {
+  need()
   const { error } = await supabase.auth.signInWithOtp({
     email: email.trim(),
-    options: { shouldCreateUser: true },
+    options: { shouldCreateUser: createUser },
   })
   if (error) throw error
 }
@@ -60,13 +97,14 @@ export async function sendCode(email) {
  * Exchanges the code for a session.
  *
  * A first-time address is confirmed by a signup token and a returning one by a
- * magiclink token. `email` is the type that covers both, but a project can be
- * configured such that it does not, and to the person typing, a rejected type
- * and a mistyped code look exactly the same. So on the one error that could be
- * either, try the other type before telling anyone their code is wrong.
+ * magiclink token. `email` is the type meant to cover both, but a project can
+ * be configured such that it does not, and to the person typing, a rejected
+ * type and a mistyped code look exactly the same. So on the one error that
+ * could be either, try the other type before telling anyone their code is
+ * wrong.
  */
 export async function verifyCode(email, token) {
-  if (!supabase) throw new Error('No Supabase project is configured.')
+  need()
   const clean = String(token).replace(/\D/g, '')
   const attempt = (type) => supabase.auth.verifyOtp({ email: email.trim(), token: clean, type })
 
@@ -76,6 +114,13 @@ export async function verifyCode(email, token) {
   }
   if (error) throw error
   return data?.session ?? null
+}
+
+/** Sets a password on the session the code just produced. */
+export async function updatePassword(password) {
+  need()
+  const { error } = await supabase.auth.updateUser({ password })
+  if (error) throw error
 }
 
 export async function signOut() {

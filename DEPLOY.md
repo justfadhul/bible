@@ -55,12 +55,14 @@ says so.
 
 ## 3. Put the code in the email ← the one that bites
 
-Sign-in is by six-digit code, and Supabase only puts the digits in the email if the template asks
-for them. **Authentication → Emails**: add `{{ .Token }}` to both **Confirm signup** and
-**Magic Link**. [AUTH.md](AUTH.md) has the markup to paste and explains why it is two templates.
+Sign-in is by email and password, but two things still arrive by email as a six-digit code:
+confirming a new address, and resetting a forgotten password. Supabase only puts the digits in if
+the template asks for them. **Authentication → Emails**: add `{{ .Token }}` to both
+**Confirm signup** and **Magic Link**. [AUTH.md](AUTH.md) has the markup to paste, explains why it
+is two templates, and covers the optional setting that skips confirmation entirely.
 
-Until that is done, sign-in emails arrive containing only a link, and there is nothing to type into
-the app. Everything else works — this is the only step that can leave the deployment half-usable.
+Until that is done those emails arrive containing only a link, with nothing to type into the app.
+Ordinary sign-in still works — this breaks the first account and every password reset.
 
 Nothing needs adding to **URL Configuration**. The redirect allow-list governs links, and there are
 none; that whole class of "the link does nothing" problem does not exist here.
@@ -69,9 +71,10 @@ none; that whole class of "the link does nothing" problem does not exist here.
 
 1. Open the deployment in a private window — you should get the Manna sign-in page.
 2. **Read on this device** → the wheel. Spin. That path needs no backend at all.
-3. Reopen, enter your email, and type the six digits it sends. You should land signed in with your
-   name filled in from the address.
-4. Settings → Sharing → **Start a shared history**, then join from a second device with the code.
+3. Reopen, **Create an account**, and finish it — code included, if confirmation is on. You should
+   land signed in with your name filled in from the address.
+4. Sign out and back in with the password. That path touches no email at all.
+5. Settings → Sharing → **Start a shared history**, then join from a second device with the code.
 
 If step 3 emails you a link and no digits, it is step 3 above — the template.
 
@@ -80,7 +83,7 @@ If step 3 emails you a link and no digits, it is step 3 above — the template.
 ## Notes
 
 **Custom domain.** Settings → Domains, and that is the whole job — there is no redirect allow-list
-to keep in step, because sign-in is by code.
+to keep in step, because nothing Manna sends is a link.
 
 **What is in `vercel.json`, and why.** Since the file cannot carry its own comments:
 

@@ -12,8 +12,11 @@ import {
   remoteConfigured,
   currentSession,
   onAuthChange,
+  signUp as remoteSignUp,
+  signIn as remoteSignIn,
   sendCode,
   verifyCode,
+  updatePassword,
   signOut as remoteSignOut,
   myPair,
   createPair as rpcCreatePair,
@@ -35,6 +38,21 @@ export function useSync({ state, onMerged }) {
   const [status, setStatus] = useState(remoteConfigured ? 'connecting' : 'off')
   const [error, setError] = useState(null)
   const [lastSyncedAt, setLastSyncedAt] = useState(null)
+  /**
+   * False until we know whether there is a session. Reading a stored session
+   * means a round trip through storage and, if the token is stale, a refresh
+   * over the network — so for a beat on every load, `session` is null for a
+   * signed-in person exactly as it is for a signed-out one. Without this flag
+   * the app cannot tell those apart, and a returning reader gets a flash of
+   * the sign-in page before their own history appears.
+   */
+  const [ready, setReady] = useState(!remoteConfigured)
+  /**
+   * A one-line confirmation that has to outlive the component that raised it.
+   * Setting a new password signs you in, which unmounts the form mid-action —
+   * so the news that it worked cannot live in that form's own state.
+   */
+  const [notice, setNotice] = useState(null)
 
   // The hook reads the newest state without re-subscribing on every keystroke.
   const stateRef = useRef(state)
@@ -55,6 +73,9 @@ export function useSync({ state, onMerged }) {
         setStatus(s ? 'connecting' : 'signed-out')
       })
       .catch(() => alive && setStatus('signed-out'))
+      // Ready either way: a session that cannot be read is a signed-out one,
+      // and nobody should be held at a splash screen over it.
+      .finally(() => alive && setReady(true))
     return onAuthChange((s) => {
       setSession(s)
       setPair(null)
@@ -142,8 +163,13 @@ export function useSync({ state, onMerged }) {
 
   /* ── actions ── */
   const actions = {
-    sendCode: (email) => sendCode(email),
+    signUp: (email, password) => remoteSignUp(email, password),
+    signIn: (email, password) => remoteSignIn(email, password),
+    sendCode: (email, opts) => sendCode(email, opts),
     verifyCode: (email, token) => verifyCode(email, token),
+    setPassword: (password) => updatePassword(password),
+    notify: (text) => setNotice(text),
+    dismissNotice: () => setNotice(null),
     signOut: async () => {
       await remoteSignOut()
       setPair(null)
@@ -175,7 +201,7 @@ export function useSync({ state, onMerged }) {
     uploadAvatar: (blob, userId) => uploadAvatar(blob, userId),
   }
 
-  return { enabled: remoteConfigured, session, pair, status, error, lastSyncedAt, push, ...actions }
+  return { enabled: remoteConfigured, ready, session, pair, status, error, notice, lastSyncedAt, push, ...actions }
 }
 
 function describe(e) {
@@ -197,11 +223,31 @@ function describe(e) {
     return 'That code is wrong, or it has expired. Ask for a new one.'
   }
   if (/only request this after|rate limit|too many requests/i.test(msg)) {
-    return 'Too many codes requested just now. Wait a minute and try again.'
+    return 'Too many attempts just now. Wait a minute and try again.'
   }
   if (/signups not allowed|signup is disabled/i.test(msg)) {
     return 'That address has no account yet, and new sign-ups are turned off for this project.'
   }
+  /* ── password ── */
+  // Supabase deliberately will not say which half was wrong, so neither can
+  // we. What it can do is name the one case people cannot guess: an account
+  // made before passwords existed here has no password to be wrong.
+  if (/invalid login credentials|invalid credentials/i.test(msg)) {
+    return 'That email and password do not match. If you have never set a password, use “Forgot password”.'
+  }
+  if (/user already registered|already been registered/i.test(msg)) {
+    return 'That address already has an account. Sign in instead.'
+  }
+  if (/email not confirmed|not confirmed/i.test(msg)) {
+    return 'That address has not been confirmed yet. Ask for a code and enter it.'
+  }
+  if (/password should be at least|password.*too short|weak password/i.test(msg)) {
+    return 'That password is too short. Use at least 8 characters.'
+  }
+  if (/same.*(as the )?old password|new password should be different/i.test(msg)) {
+    return 'That is the password you already had. Choose a different one.'
+  }
+  if (/unable to validate email|invalid email/i.test(msg)) return 'That does not look like an email address.'
   if (/JWT|not signed in|sign in first/i.test(msg)) return 'That session has expired. Sign in again.'
   return msg
 }

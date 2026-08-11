@@ -1,12 +1,12 @@
 /**
- * Sharing: sign in with an emailed code, then create or join a pair.
+ * Sharing: sign in with an email and password, then create or join a pair.
  *
  * The whole panel is optional. With no session the app is exactly what it was
  * before — local, private, and fully working — so this never blocks reading.
  */
 import { useState } from 'react'
 import { Alert, Badge, Button, Card, Field, Icon, ICONS } from './ui.jsx'
-import SignInForm from './SignInForm.jsx'
+import AuthForm, { MIN_PASSWORD } from './AuthForm.jsx'
 import { describeSyncError } from '../hooks/useSync.js'
 import * as haptics from '../lib/haptics.js'
 
@@ -77,7 +77,7 @@ export default function Sharing({ sync }) {
         header="Sharing"
         footer="One sign-in each, then one of you shares a group code. Until then everything stays on this device."
       >
-        <SignInForm sync={sync} />
+        <AuthForm sync={sync} />
       </Group>
     )
   }
@@ -139,11 +139,7 @@ export default function Sharing({ sync }) {
           </div>
         </Group>
 
-        <Group header="Account">
-          <Button variant="secondary" className="w-full" onClick={() => run(sync.signOut)}>
-            Sign out
-          </Button>
-        </Group>
+        <Account sync={sync} busy={busy} run={run} />
       </>
     )
   }
@@ -203,11 +199,90 @@ export default function Sharing({ sync }) {
         </div>
       </Group>
 
-      <Group header="Account" footer={`Signed in as ${sync.session.user?.email ?? 'you'}.`}>
-        <Button variant="secondary" className="w-full" onClick={() => run(sync.signOut)}>
+      <Account sync={sync} busy={busy} run={run} />
+    </>
+  )
+}
+
+/**
+ * The account itself: who you are signed in as, and the two things you can do
+ * about it. Changing a password while signed in needs no code — the session
+ * already proves the address — so it is a field and a button, not a flow.
+ */
+function Account({ sync, busy, run }) {
+  const [open, setOpen] = useState(false)
+  const [password, setPassword] = useState('')
+  const [done, setDone] = useState(false)
+
+  return (
+    <Group header="Account" footer={`Signed in as ${sync.session.user?.email ?? 'you'}.`}>
+      <div className="space-y-3">
+        {done && (
+          <Alert icon={ICONS.check}>Password changed. It is what you will sign in with from now on.</Alert>
+        )}
+
+        {open ? (
+          <form
+            className="space-y-3"
+            onSubmit={(e) => {
+              e.preventDefault()
+              run(async () => {
+                await sync.setPassword(password)
+                setPassword('')
+                setOpen(false)
+                setDone(true)
+              })
+            }}
+          >
+            <Field
+              id="new-password"
+              type="password"
+              label="New password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="new-password"
+              hint={`At least ${MIN_PASSWORD} characters.`}
+              error={null}
+            />
+            <div className="flex gap-2.5">
+              <Button
+                variant="secondary"
+                className="flex-1"
+                disabled={busy}
+                onClick={() => {
+                  setOpen(false)
+                  setPassword('')
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="flex-1"
+                disabled={busy || password.length < MIN_PASSWORD}
+                busy={busy}
+              >
+                Save
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <Button
+            variant="secondary"
+            className="w-full"
+            onClick={() => {
+              setDone(false)
+              setOpen(true)
+            }}
+          >
+            Change password
+          </Button>
+        )}
+
+        <Button variant="secondary" className="w-full" disabled={busy} busy={busy} onClick={() => run(sync.signOut)}>
           Sign out
         </Button>
-      </Group>
-    </>
+      </div>
+    </Group>
   )
 }

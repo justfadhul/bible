@@ -144,7 +144,7 @@ security. The service-role key bypasses RLS entirely and must never appear in
 `supabase/migrations/0001_shared_history.sql`, Run. It is idempotent, so re-running after a change
 to the file is safe and only replaces what moved.
 
-Then, in Settings → Sharing: each of you signs in with an emailed code, one
+Then, in Settings → Sharing: each of you signs in with an email and password, one
 creates a shared history and reads out the eight-character invite code, the
 other enters it. From then on both devices read and write the same rows, and
 changes appear on the other phone without a refresh.

@@ -11,39 +11,23 @@
  * it. After that the app opens on the wheel, and everything here is still
  * reachable from Settings → Sharing.
  */
-import { Button, Icon, ICONS } from './ui.jsx'
-import SignInForm from './SignInForm.jsx'
+import { Brandmark, Button, Icon, ICONS } from './ui.jsx'
+import AuthForm from './AuthForm.jsx'
 import { APP_NAME, APP_TAGLINE } from '../lib/brand.js'
-
-/** The wheel as a mark: six segments and a pointer, drawn from the ink tokens. */
-function Mark() {
-  return (
-    <svg viewBox="0 0 64 64" className="size-16" aria-hidden="true">
-      <g transform="translate(32 34)">
-        <circle r="21.5" fill="none" stroke="var(--hairline-strong)" strokeWidth="1.5" />
-        <path d="M0 -19 A19 19 0 0 1 16.5 9.5 L0 0 Z" fill="var(--accent)" />
-        <path d="M16.5 9.5 A19 19 0 0 1 -16.5 9.5 L0 0 Z" fill="var(--ink-3)" />
-        <path d="M-16.5 9.5 A19 19 0 0 1 0 -19 L0 0 Z" fill="var(--ink-2)" />
-        <circle r="6.5" fill="var(--surface-raised)" stroke="var(--hairline-strong)" strokeWidth="1.2" />
-      </g>
-      <path d="M32 5.5 L27.5 14 L36.5 14 Z" fill="var(--ink)" />
-    </svg>
-  )
-}
 
 export default function AuthPage({ sync, onSkip }) {
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-7 px-5 py-10">
       <header className="reveal text-center">
         <div className="flex justify-center">
-          <Mark />
+          <Brandmark />
         </div>
         <h1 className="mt-5 font-serif text-4xl font-semibold tracking-[-0.02em]">{APP_NAME}</h1>
         <p className="mt-2.5 text-balance text-ink-2">{APP_TAGLINE}</p>
       </header>
 
       <div className="reveal reveal-delay-1">
-        <SignInForm sync={sync} size="lg" />
+        <AuthForm sync={sync} size="lg" />
       </div>
 
       <div className="reveal reveal-delay-2 flex items-center gap-3">
