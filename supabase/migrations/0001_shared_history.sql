@@ -1,9 +1,10 @@
 -- ═══════════════════════════════════════════════════════════════════════════
 --  The Spin Catalog — shared reading history
 --
---  Two people, one history. Each signs in with a magic link; one of them
---  creates a pair and shares its invite code, the other joins with it. From
---  then on both devices read and write the same rows.
+--  One shared history for a small group — two people, or up to eight. Each
+--  signs in with a magic link; one creates the group and shares its invite
+--  code, the others join with it. From then on every device reads and writes
+--  the same rows.
 --
 --  Run this once in the Supabase SQL editor (Dashboard → SQL Editor → New
 --  query → paste → Run). It is idempotent, so re-running is harmless.
@@ -30,8 +31,10 @@ create table if not exists public.pairs (
   id              uuid primary key default gen_random_uuid(),
   invite_code     text not null unique,
   last_spin_date  date,
-  reader_name_a   text not null default 'Reader A',
-  reader_name_b   text not null default 'Reader B',
+  -- The reader roster, in the same shape the client holds it:
+  -- [{ id, name, avatarUrl, userId, email }]. The access pattern is always
+  -- "read this pair's whole state", so a document beats three joins here.
+  readers         jsonb not null default '[]'::jsonb,
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now()
 );
@@ -39,10 +42,8 @@ create table if not exists public.pairs (
 create table if not exists public.pair_members (
   pair_id    uuid not null references public.pairs(id) on delete cascade,
   user_id    uuid not null references auth.users(id) on delete cascade,
-  slot       char(1) not null check (slot in ('a', 'b')),
   created_at timestamptz not null default now(),
-  primary key (pair_id, user_id),
-  unique (pair_id, slot)
+  primary key (pair_id, user_id)
 );
 
 create index if not exists pair_members_user_idx on public.pair_members(user_id);
@@ -54,8 +55,8 @@ create table if not exists public.readings (
   entry_id   integer not null check (entry_id > 0),
   date_iso   date,
   notes      text not null default '',
-  read_by_a  boolean not null default false,
-  read_by_b  boolean not null default false,
+  -- Reader ids, matching pairs.readers[].id.
+  read_by    text[] not null default '{}',
   updated_at timestamptz not null default now(),
   primary key (pair_id, entry_id)
 );
@@ -158,12 +159,11 @@ begin
     raise exception 'not signed in' using errcode = '28000';
   end if;
 
-  insert into public.pairs (invite_code, reader_name_a)
-  values (public.new_invite_code(), coalesce(nullif(trim(p_name), ''), 'Reader A'))
+  insert into public.pairs (invite_code)
+  values (public.new_invite_code())
   returning * into v_pair;
 
-  insert into public.pair_members (pair_id, user_id, slot)
-  values (v_pair.id, auth.uid(), 'a');
+  insert into public.pair_members (pair_id, user_id) values (v_pair.id, auth.uid());
 
   return query select v_pair.id, v_pair.invite_code;
 end;
@@ -206,16 +206,11 @@ begin
   end if;
 
   select count(*) into v_count from public.pair_members m where m.pair_id = v_pair_id;
-  if v_count >= 2 then
-    raise exception 'that pair already has two readers' using errcode = 'P0001';
+  if v_count >= 8 then
+    raise exception 'that group is full' using errcode = 'P0001';
   end if;
 
-  insert into public.pair_members (pair_id, user_id, slot) values (v_pair_id, auth.uid(), 'b');
-
-  if p_name is not null and trim(p_name) <> '' then
-    update public.pairs set reader_name_b = trim(p_name), updated_at = now() where id = v_pair_id;
-  end if;
-
+  insert into public.pair_members (pair_id, user_id) values (v_pair_id, auth.uid());
   return v_pair_id;
 end;
 $$;
@@ -229,20 +224,18 @@ create or replace function public.my_pair()
 returns table (
   pair_id uuid,
   invite_code text,
-  slot char(1),
   member_count integer,
   last_spin_date date,
-  reader_name_a text,
-  reader_name_b text
+  readers jsonb
 )
 language sql
 stable
 security definer
 set search_path = public, pg_catalog
 as $$
-  select p.id, p.invite_code, m.slot,
+  select p.id, p.invite_code,
          (select count(*)::int from public.pair_members x where x.pair_id = p.id),
-         p.last_spin_date, p.reader_name_a, p.reader_name_b
+         p.last_spin_date, p.readers
   from public.pair_members m
   join public.pairs p on p.id = m.pair_id
   where m.user_id = auth.uid()
@@ -299,3 +292,36 @@ begin
   end if;
 end
 $$;
+
+-- ── avatars ───────────────────────────────────────────────────────────────
+-- Public read so a photo renders for the other readers without a signed URL;
+-- writes are confined to a folder named after your own user id, so nobody can
+-- overwrite anyone else's picture.
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('avatars', 'avatars', true, 2097152,
+        array['image/jpeg', 'image/png', 'image/webp'])
+on conflict (id) do update
+  set public = true,
+      file_size_limit = 2097152,
+      allowed_mime_types = array['image/jpeg', 'image/png', 'image/webp'];
+
+drop policy if exists avatars_read on storage.objects;
+create policy avatars_read on storage.objects
+  for select to public
+  using (bucket_id = 'avatars');
+
+drop policy if exists avatars_write on storage.objects;
+create policy avatars_write on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
+
+drop policy if exists avatars_update on storage.objects;
+create policy avatars_update on storage.objects
+  for update to authenticated
+  using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
+
+drop policy if exists avatars_delete on storage.objects;
+create policy avatars_delete on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);

@@ -22,6 +22,7 @@ import {
   pushRemoteState,
   deleteRemoteReading,
   subscribeToPair,
+  uploadAvatar,
 } from '../lib/remote.js'
 import { mergeStates } from '../lib/merge.js'
 
@@ -169,6 +170,7 @@ export function useSync({ state, onMerged }) {
       }
     },
     resync: () => sync(),
+    uploadAvatar: (blob, userId) => uploadAvatar(blob, userId),
   }
 
   return { enabled: remoteConfigured, session, pair, status, error, lastSyncedAt, push, ...actions }

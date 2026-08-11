@@ -1,3 +1,5 @@
+import { displayName, initials, readerColor } from '../lib/readers.js'
+
 /**
  * The design system, as components.
  *
@@ -352,6 +354,66 @@ export function Alert({ children, tone = 'accent', icon = ICONS.info }) {
       <Icon path={icon} size={20} className="mt-px shrink-0" />
       <div className="min-w-0 flex-1">{children}</div>
     </div>
+  )
+}
+
+/* ── Avatar ────────────────────────────────────────────────────────────── */
+
+/**
+ * A reader's picture, or their initials on a colour derived from their id.
+ * The fallback is never a generic silhouette — with several readers the point
+ * of the avatar is telling them apart at a glance, and a shared grey outline
+ * does the opposite.
+ */
+export function Avatar({ reader, index = 0, size = 40, ring = false, className = '' }) {
+  const name = displayName(reader, index)
+  const src = reader?.avatarUrl
+  return (
+    <span
+      className={`relative inline-grid shrink-0 place-items-center overflow-hidden rounded-full ${className}`}
+      style={{
+        width: size,
+        height: size,
+        background: src ? 'var(--surface-inset)' : readerColor(reader?.id ?? index),
+        boxShadow: ring ? 'var(--e2), 0 0 0 2px var(--surface-raised)' : 'var(--e2)',
+      }}
+      title={name}
+    >
+      {src ? (
+        <img src={src} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
+      ) : (
+        <span
+          className="font-semibold text-white select-none"
+          style={{ fontSize: Math.round(size * 0.36), letterSpacing: '0.02em' }}
+          aria-hidden="true"
+        >
+          {initials(reader, index)}
+        </span>
+      )}
+    </span>
+  )
+}
+
+/** Overlapping avatars — who has read this, in one glance. */
+export function AvatarStack({ readers, size = 26, max = 5 }) {
+  const shown = readers.slice(0, max)
+  const extra = readers.length - shown.length
+  return (
+    <span className="inline-flex items-center">
+      {shown.map((r, i) => (
+        <span key={r.id} style={{ marginLeft: i === 0 ? 0 : -size * 0.3 }}>
+          <Avatar reader={r} index={i} size={size} ring />
+        </span>
+      ))}
+      {extra > 0 && (
+        <span
+          className="grid place-items-center rounded-full bg-inset text-2xs font-semibold text-ink-2"
+          style={{ width: size, height: size, marginLeft: -size * 0.3, boxShadow: 'var(--inset)' }}
+        >
+          +{extra}
+        </span>
+      )}
+    </span>
   )
 }
 

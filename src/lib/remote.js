@@ -14,7 +14,7 @@
  * ─────────────────────────────────────────────────────────────────────────
  */
 import { createClient } from '@supabase/supabase-js'
-import { emptyState, DEFAULT_READER_NAMES } from './storage.js'
+import { emptyState, normalizeState } from './storage.js'
 import { isISODate } from './date.js'
 
 const URL = import.meta.env?.VITE_SUPABASE_URL
@@ -96,7 +96,7 @@ const rowToReading = (r) => ({
   id: r.entry_id,
   dateISO: isISODate(r.date_iso) ? r.date_iso : null,
   notes: typeof r.notes === 'string' ? r.notes : '',
-  readBy: { a: r.read_by_a === true, b: r.read_by_b === true },
+  readBy: Array.isArray(r.read_by) ? r.read_by.filter((x) => typeof x === 'string') : [],
   updatedAt: r.updated_at ?? null,
 })
 
@@ -104,18 +104,22 @@ const rowToReading = (r) => ({
 export async function fetchRemoteState(pair) {
   const { data, error } = await supabase
     .from('readings')
-    .select('entry_id,date_iso,notes,read_by_a,read_by_b,updated_at')
+    .select('entry_id,date_iso,notes,read_by,updated_at')
     .eq('pair_id', pair.pair_id)
   if (error) throw error
 
+  // The roster arrives as whatever was last written, so it goes through the
+  // same guard as a file import rather than being trusted.
+  const { state } = normalizeState({
+    version: emptyState().version,
+    readers: Array.isArray(pair.readers) ? pair.readers : [],
+    completed: [],
+    lastSpinDate: pair.last_spin_date,
+  })
+
   return {
-    ...emptyState(),
+    ...state,
     completed: (data ?? []).map(rowToReading),
-    lastSpinDate: isISODate(pair.last_spin_date) ? pair.last_spin_date : null,
-    readerNames: {
-      a: pair.reader_name_a || DEFAULT_READER_NAMES.a,
-      b: pair.reader_name_b || DEFAULT_READER_NAMES.b,
-    },
   }
 }
 
@@ -127,8 +131,7 @@ export async function pushRemoteState(pair, state) {
     entry_id: r.id,
     date_iso: r.dateISO,
     notes: r.notes ?? '',
-    read_by_a: !!r.readBy?.a,
-    read_by_b: !!r.readBy?.b,
+    read_by: r.readBy ?? [],
   }))
 
   for (let i = 0; i < rows.length; i += 200) {
@@ -140,11 +143,7 @@ export async function pushRemoteState(pair, state) {
 
   const { error } = await supabase
     .from('pairs')
-    .update({
-      last_spin_date: state.lastSpinDate,
-      reader_name_a: state.readerNames.a,
-      reader_name_b: state.readerNames.b,
-    })
+    .update({ last_spin_date: state.lastSpinDate, readers: state.readers })
     .eq('id', pair.pair_id)
   if (error) throw error
 }
@@ -157,6 +156,28 @@ export async function deleteRemoteReading(pair, entryId) {
     .eq('pair_id', pair.pair_id)
     .eq('entry_id', entryId)
   if (error) throw error
+}
+
+/* ── avatars ───────────────────────────────────────────────────────────── */
+
+/**
+ * Uploads a prepared avatar and returns its public URL.
+ *
+ * The path is namespaced by user id because the storage policy only lets you
+ * write inside your own folder — so a reader can replace their own picture and
+ * nobody else's. The filename changes each time to sidestep CDN caching, which
+ * otherwise leaves the old photo on the other person's phone for hours.
+ */
+export async function uploadAvatar(blob, userId) {
+  if (!supabase) throw new Error('No Supabase project is configured.')
+  if (!userId) throw new Error('Sign in to upload a photo.')
+  const path = `${userId}/avatar-${Date.now()}.jpg`
+  const { error } = await supabase.storage
+    .from('avatars')
+    .upload(path, blob, { contentType: 'image/jpeg', upsert: true, cacheControl: '3600' })
+  if (error) throw error
+  const { data } = supabase.storage.from('avatars').getPublicUrl(path)
+  return data.publicUrl
 }
 
 /** Live updates from the other reader's device. Returns an unsubscribe fn. */

@@ -8,6 +8,7 @@
  */
 import { useRef, useState } from 'react'
 import { Alert, Button, Card, Field, Icon, ICONS, Segmented } from './ui.jsx'
+import Readers from './Readers.jsx'
 import Sharing from './Sharing.jsx'
 import { normalizeState } from '../lib/storage.js'
 import { TOTAL, meta } from '../lib/catalog.js'
@@ -22,7 +23,7 @@ function Group({ header, footer, children, className = '' }) {
   )
 }
 
-export default function Settings({ state, sync, theme, onTheme, onImport, onReset, onReaderName }) {
+export default function Settings({ state, sync, theme, onTheme, onImport, onReset, onUpdateReader, onAddReader, onRemoveReader, haptics: hx }) {
   const fileRef = useRef(null)
   const [status, setStatus] = useState(null)
   const [pendingReset, setPendingReset] = useState(false)
@@ -97,18 +98,30 @@ export default function Settings({ state, sync, theme, onTheme, onImport, onRese
         />
       </Group>
 
-      <Group header="Who is reading" footer="Only used to label the two checkboxes on a reading." className="space-y-3">
-        {['a', 'b'].map((key) => (
-          <Field
-            key={key}
-            id={`reader-${key}`}
-            label={`Reader ${key.toUpperCase()}`}
-            value={state.readerNames[key]}
-            onChange={(e) => onReaderName(key, e.target.value.slice(0, 40))}
-            maxLength={40}
+      {hx?.supported && (
+        <Group
+          header="Feedback"
+          footer="Short buzzes as the wheel ticks past each segment, and one firmer note when it stops."
+        >
+          <Segmented
+            label="Vibration"
+            value={hx.enabled ? 'on' : 'off'}
+            onChange={(v) => hx.set(v === 'on')}
+            options={[
+              { value: 'on', label: 'Vibration on' },
+              { value: 'off', label: 'Off' },
+            ]}
           />
-        ))}
-      </Group>
+        </Group>
+      )}
+
+      <Readers
+        state={state}
+        sync={sync}
+        onUpdate={onUpdateReader}
+        onAdd={onAddReader}
+        onRemove={onRemoveReader}
+      />
 
       <Group
         header="Backup"

@@ -14,6 +14,8 @@ import { Alert, Button, Card, Icon, ICONS, Tabs } from './components/ui.jsx'
 import { getState, saveState, clearState, emptyState } from './lib/storage.js'
 import { useSync } from './hooks/useSync.js'
 import { getTheme, saveTheme, applyTheme, resolvedTheme } from './lib/theme.js'
+import { nameFromEmail } from './lib/readers.js'
+import * as haptics from './lib/haptics.js'
 import {
   completedIds as idsOf,
   isExhausted,
@@ -22,7 +24,10 @@ import {
   rowForDate,
   setNotes,
   setReadBy,
-  setReaderName,
+  addReader,
+  removeReader,
+  updateReader,
+  linkAccount,
   undoSpin,
 } from './lib/state.js'
 import { getEntry, TOTAL, catalogProblems } from './lib/catalog.js'
@@ -189,15 +194,40 @@ export default function App() {
       entry={todayEntry}
       row={todayRow}
       dateISO={todayRow.dateISO}
-      readerNames={state.readerNames}
+      readers={state.readers}
       onNotes={(notes) => commit(setNotes(state, todayEntry.id, notes))}
-      onReadBy={(reader, value) => commit(setReadBy(state, todayEntry.id, reader, value))}
+      onReadBy={(readerId, value) => commit(setReadBy(state, todayEntry.id, readerId, value))}
       undo={undoInfo}
       onUndo={doUndo}
       isToday={todayRow.dateISO === today}
       animate={justSpunId === todayEntry.id}
     />
   ) : null
+
+  // Signing in should fill in who you are, not leave you as "Reader A".
+  useEffect(() => {
+    const user = sync.session?.user
+    if (!user?.id) return
+    const next = linkAccount(state, {
+      userId: user.id,
+      email: user.email ?? null,
+      name: nameFromEmail(user.email),
+      avatarUrl: user.user_metadata?.avatar_url ?? null,
+    })
+    if (next !== state) commit(next)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sync.session?.user?.id])
+
+  const [hapticsOn, setHapticsOn] = useState(haptics.hapticsEnabled)
+  const hapticsPrefs = {
+    supported: haptics.canVibrate(),
+    enabled: hapticsOn,
+    set: (v) => {
+      haptics.setHapticsEnabled(v)
+      setHapticsOn(v)
+      if (v) haptics.toggle()
+    },
+  }
 
   const isDark = resolvedTheme(theme) === 'dark'
 
@@ -295,7 +325,10 @@ export default function App() {
               setJustSpunId(null)
               setUndo(null)
             }}
-            onReaderName={(key, name) => commit(setReaderName(state, key, name))}
+            onUpdateReader={(id, patch) => commit(updateReader(state, id, patch))}
+            onAddReader={() => commit(addReader(state))}
+            onRemoveReader={(id) => commit(removeReader(state, id))}
+            haptics={hapticsPrefs}
           />
         )}
 

@@ -5,7 +5,9 @@
  * only way back is the 60-second undo, which App owns.
  */
 import { useEffect, useRef, useState } from 'react'
-import { Badge, Button, Card, Checkbox, Field, Icon, ICONS } from './ui.jsx'
+import { Avatar, Badge, Button, Card, Field, Icon, ICONS } from './ui.jsx'
+import { displayName } from '../lib/readers.js'
+import * as haptics from '../lib/haptics.js'
 import { getCategory } from '../lib/catalog.js'
 import { formatLongDate } from '../lib/date.js'
 import { inkOn } from '../lib/wheel.js'
@@ -25,7 +27,7 @@ export default function TodayCard({
   entry,
   row,
   dateISO,
-  readerNames,
+  readers,
   onNotes,
   onReadBy,
   undo,
@@ -34,6 +36,7 @@ export default function TodayCard({
   animate = true,
 }) {
   const category = getCategory(entry.category)
+  const readCount = row?.readBy?.length ?? 0
   const [draft, setDraft] = useState(row?.notes ?? '')
   const [copied, setCopied] = useState(false)
   const debounce = useRef(null)
@@ -118,7 +121,7 @@ export default function TodayCard({
       {undo && (
         <Card className="flex items-center gap-3 px-4 py-3" level={2}>
           <p className="flex-1 text-sm text-ink-2">Misclick? You can undo this spin for {undo.secondsLeft}s.</p>
-          <Button variant="secondary" size="sm" onClick={onUndo}>
+          <Button variant="secondary" size="sm" onClick={() => { haptics.tap(); onUndo() }}>
             <Icon path={ICONS.undo} size={16} />
             Undo
           </Button>
@@ -127,18 +130,55 @@ export default function TodayCard({
 
       <Card className={`px-4 py-4 ${r} reveal-delay-2`}>
         <p className="eyebrow">Read by</p>
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          <Checkbox label={readerNames.a} checked={!!row?.readBy?.a} onChange={(v) => onReadBy('a', v)} className="px-1" />
-          <Checkbox label={readerNames.b} checked={!!row?.readBy?.b} onChange={(v) => onReadBy('b', v)} className="px-1" />
-        </div>
-        <p className="mt-1.5 text-xs text-ink-2" aria-live="polite">
-          {row?.readBy?.a && row?.readBy?.b
-            ? 'You have both marked this as read.'
-            : row?.readBy?.a
-              ? `${readerNames.a} has read this. ${readerNames.b} has not yet.`
-              : row?.readBy?.b
-                ? `${readerNames.b} has read this. ${readerNames.a} has not yet.`
-                : 'Neither of you has marked this as read yet.'}
+        <ul className="mt-2.5 space-y-1.5">
+          {readers.map((reader, i) => {
+            const on = row?.readBy?.includes(reader.id)
+            return (
+              <li key={reader.id}>
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={!!on}
+                  onClick={() => {
+                    haptics.toggle()
+                    onReadBy(reader.id, !on)
+                  }}
+                  className="flex min-h-12 w-full items-center gap-3 rounded-r3 px-2 text-left"
+                  style={on ? { background: 'var(--accent-soft)' } : undefined}
+                >
+                  <Avatar reader={reader} index={i} size={34} />
+                  <span className={`min-w-0 flex-1 truncate ${on ? 'font-semibold' : 'text-ink-2'}`}>
+                    {displayName(reader, i)}
+                  </span>
+                  <span
+                    aria-hidden="true"
+                    className="grid size-6 shrink-0 place-items-center rounded-r2"
+                    style={{
+                      background: on ? 'var(--accent)' : 'var(--surface-inset)',
+                      boxShadow: on ? 'var(--e2)' : 'var(--inset), inset 0 0 0 1px var(--hairline-strong)',
+                      transition: 'background-color .24s var(--ease), box-shadow .24s var(--ease)',
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="var(--accent-ink)" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path
+                        d={ICONS.check}
+                        pathLength="1"
+                        strokeDasharray="1"
+                        style={{ strokeDashoffset: on ? 0 : 1, transition: 'stroke-dashoffset .32s var(--ease) .04s' }}
+                      />
+                    </svg>
+                  </span>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+        <p className="mt-2 px-1 text-xs text-ink-2" aria-live="polite">
+          {readCount === 0
+            ? 'Nobody has marked this as read yet.'
+            : readCount === readers.length
+              ? `All ${readers.length} of you have read this.`
+              : `${readCount} of ${readers.length} have read this.`}
         </p>
       </Card>
 
@@ -155,7 +195,7 @@ export default function TodayCard({
         />
       </Card>
 
-      <Button variant="secondary" className="w-full" onClick={copy}>
+      <Button variant="secondary" className="w-full" onClick={() => { haptics.tap(); copy() }}>
         <Icon path={ICONS.copy} size={18} />
         {copied ? 'Copied' : 'Copy for WhatsApp'}
       </Button>

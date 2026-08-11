@@ -6,7 +6,7 @@
  * colour, and whatever was written about it.
  */
 import { useMemo, useState } from 'react'
-import { Card, EmptyState, Field, Icon, ICONS, Inset, Segmented } from './ui.jsx'
+import { AvatarStack, Card, EmptyState, Field, Icon, ICONS, Inset, Segmented } from './ui.jsx'
 import { CATEGORIES, TOTAL, getEntry, getCategory } from '../lib/catalog.js'
 import { formatShortDate } from '../lib/date.js'
 import { archiveStats } from '../lib/stats.js'
@@ -65,13 +65,12 @@ function CategoryChart({ rows }) {
   )
 }
 
-function Row({ row, readerNames, ground, last }) {
+function Row({ row, readers, ground, last }) {
   const entry = getEntry(row.id)
   const [open, setOpen] = useState(false)
   if (!entry) return null
   const category = getCategory(entry.category)
-  const both = row.readBy?.a && row.readBy?.b
-  const someone = row.readBy?.a || row.readBy?.b
+  const readBy = readers.filter((r) => row.readBy?.includes(r.id))
 
   return (
     <li>
@@ -91,16 +90,17 @@ function Row({ row, readerNames, ground, last }) {
           <span className="shrink-0 text-2xs tabular-nums text-ink-2">{formatShortDate(row.dateISO)}</span>
         </span>
         <span className="mt-0.5 block font-serif text-sm text-ink-2">{entry.reference}</span>
-        <span className="mt-1.5 flex flex-wrap items-center gap-x-1.5 text-2xs">
+        <span className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-2xs">
           <span className="font-semibold" style={{ color: readableInk(category?.color ?? '#888888', ground) }}>
             {category?.name}
           </span>
           <span className="text-ink-2">· {entry.size}</span>
-          {both && <span className="text-ink-2">· both read</span>}
-          {!both && someone && (
-            <span className="text-ink-2">· {row.readBy?.a ? readerNames.a : readerNames.b} read</span>
-          )}
           {row.notes?.trim() && <span className="text-ink-2">· notes</span>}
+          {readBy.length > 0 && (
+            <span className="ml-auto inline-flex items-center gap-1.5">
+              <AvatarStack readers={readBy} size={20} />
+            </span>
+          )}
         </span>
       </button>
 
@@ -161,7 +161,7 @@ export default function FinishedSide({ state }) {
         <Stat value={stats.current} label="day streak" sub={stats.current === 0 ? 'none yet' : 'current'} />
         <Stat value={stats.longest} label="longest" sub={plural(stats.days, 'day')} />
         <Stat value={`${Math.floor(stats.fraction * 100)}%`} label="of catalog" sub={`of ${TOTAL}`} />
-        <Stat value={stats.bothRead} label="read by both" sub="ticked twice" />
+        <Stat value={stats.allRead} label="read by all" sub={`of ${stats.readerCount || 0} readers`} />
         <Stat value={stats.withNotes} label="with notes" sub={`of ${stats.read || 0}`} />
       </div>
 
@@ -225,7 +225,7 @@ export default function FinishedSide({ state }) {
             <Row
               key={row.id}
               row={row}
-              readerNames={state.readerNames}
+              readers={state.readers}
               ground={ground}
               last={i === filtered.length - 1}
             />

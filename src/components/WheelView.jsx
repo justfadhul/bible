@@ -13,11 +13,12 @@ import { planSpin, availableCategories } from '../lib/selection.js'
 import { computeFinalRotation, randomJitter } from '../lib/wheel.js'
 import { TOTAL } from '../lib/catalog.js'
 import { usePrefersReducedMotion } from '../hooks/useMedia.js'
+import * as haptics from '../lib/haptics.js'
 
 // About five seconds of travel across both stages, with a beat between them.
-const STAGE_1_MS = 2300
+const STAGE_1_MS = 2500
 const HANDOVER_MS = 380
-const STAGE_2_MS = 1850
+const STAGE_2_MS = 2000
 const SETTLE_MS = 260
 
 const toCategorySegments = (cats) => cats.map((c) => ({ key: c.id, label: c.name, color: c.color }))
@@ -36,7 +37,6 @@ export default function WheelView({ completedIds, onLanded, onAnnounce, exhauste
   // the watchdog below that got there first.
   const settled = useRef(new Set())
 
-  const spinning = phase === 'stage1' || phase === 'stage2'
   const busy = phase !== 'idle'
 
   const after = useCallback((ms, fn) => {
@@ -108,6 +108,7 @@ export default function WheelView({ completedIds, onLanded, onAnnounce, exhauste
 
       if (stage === 'stage2') {
         setPhase('landing')
+        haptics.land()
         after(SETTLE_MS, finish)
       }
     },
@@ -124,6 +125,9 @@ export default function WheelView({ completedIds, onLanded, onAnnounce, exhauste
     settled.current = new Set()
     clearTimers()
     onAnnounce?.('Spinning.')
+
+    haptics.setHapticsMuted(reduced)
+    haptics.tap()
 
     if (reduced) {
       // No theatre: seat the wheel on the chosen passage and cross-fade.
@@ -167,9 +171,9 @@ export default function WheelView({ completedIds, onLanded, onAnnounce, exhauste
         <Wheel
           segments={segments}
           rotation={rotation}
-          spinning={spinning}
           durationMs={duration}
           onSettled={() => settle(phase)}
+          onTick={haptics.tick}
           hubLabel={exhausted ? '✓' : remaining}
           hubSub={exhausted ? 'ALL READ' : 'LEFT'}
           maxLines={showingEntries ? 1 : 2}

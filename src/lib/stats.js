@@ -68,15 +68,17 @@ export function archiveStats(state) {
   const ids = new Set(state.completed.map((r) => r.id))
   const testament = { OT: 0, NT: 0 }
   const size = { short: 0, medium: 0, long: 0 }
-  let bothRead = 0
+  let allRead = 0
   let withNotes = 0
+  const readerCount = state.readers?.length ?? 0
   for (const r of state.completed) {
     const e = getEntry(r.id)
     if (e) {
       if (e.testament in testament) testament[e.testament]++
       if (e.size in size) size[e.size]++
     }
-    if (r.readBy?.a && r.readBy?.b) bothRead++
+    // "everyone" only means something once there is somebody.
+    if (readerCount > 0 && (r.readBy?.length ?? 0) >= readerCount) allRead++
     if (r.notes?.trim()) withNotes++
   }
   return {
@@ -89,7 +91,8 @@ export function archiveStats(state) {
     days: readingDays(state.completed).length,
     testament,
     size,
-    bothRead,
+    allRead,
+    readerCount,
     withNotes,
     perCategory: categoryProgress(ids),
   }

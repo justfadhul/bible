@@ -2,13 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mergeStates } from './merge.js'
 import { emptyState } from './storage.js'
 
-const row = (id, over = {}) => ({
-  id,
-  dateISO: '2026-03-01',
-  notes: '',
-  readBy: { a: false, b: false },
-  ...over,
-})
+const row = (id, over = {}) => ({ id, dateISO: '2026-03-01', notes: '', readBy: [], ...over })
 
 const state = (completed, over = {}) => ({ ...emptyState(), completed, ...over })
 
@@ -40,12 +34,14 @@ describe('field-level merging', () => {
     expect(merged.completed[0].dateISO).toBe('2026-05-02')
   })
 
-  it('ORs the read ticks so neither device can un-say the other', () => {
-    const merged = mergeStates(
-      state([row(1, { readBy: { a: true, b: false } })]),
-      state([row(1, { readBy: { a: false, b: true } })]),
-    )
-    expect(merged.completed[0].readBy).toEqual({ a: true, b: true })
+  it('unions the read ticks so neither device can un-say the other', () => {
+    const merged = mergeStates(state([row(1, { readBy: ['a'] })]), state([row(1, { readBy: ['b'] })]))
+    expect(new Set(merged.completed[0].readBy)).toEqual(new Set(['a', 'b']))
+  })
+
+  it('drops ticks by readers who survived neither roster', () => {
+    const merged = mergeStates(state([row(1, { readBy: ['a', 'ghost'] })]), state([row(1)]))
+    expect(merged.completed[0].readBy).toEqual(['a'])
   })
 
   it('takes the newer notes when there is a timestamp', () => {
@@ -83,21 +79,49 @@ describe('the day lock', () => {
   })
 })
 
-describe('reader names', () => {
+const reader = (id, over = {}) => ({ id, name: '', avatarUrl: null, userId: null, email: null, ...over })
+
+describe('merging the reader roster', () => {
   it('takes the shared copy by default', () => {
     const merged = mergeStates(
-      state([], { readerNames: { a: 'local', b: 'local' } }),
-      state([], { readerNames: { a: 'Sam', b: 'Alex' } }),
+      state([], { readers: [reader('a', { name: 'local' })] }),
+      state([], { readers: [reader('a', { name: 'Sam' })] }),
     )
-    expect(merged.readerNames).toEqual({ a: 'Sam', b: 'Alex' })
+    expect(merged.readers[0].name).toBe('Sam')
   })
 
-  it('can be told to keep the local ones — the first push after pairing', () => {
+  it('can be told to keep the local names — the first push after pairing', () => {
     const merged = mergeStates(
-      state([], { readerNames: { a: 'Sam', b: 'Alex' } }),
-      state([], { readerNames: { a: 'Reader A', b: 'Reader B' } }),
+      state([], { readers: [reader('a', { name: 'Sam' })] }),
+      state([], { readers: [reader('a', { name: 'Reader A' })] }),
       { preferRemoteNames: false },
     )
-    expect(merged.readerNames).toEqual({ a: 'Sam', b: 'Alex' })
+    expect(merged.readers[0].name).toBe('Sam')
+  })
+
+  it('matches the same person across devices by account, not just by id', () => {
+    // The second device generated its own id for the same signed-in human.
+    const merged = mergeStates(
+      state([], { readers: [reader('local-1', { userId: 'u1', name: 'Sam' })] }),
+      state([], { readers: [reader('remote-9', { userId: 'u1', avatarUrl: 'https://x/p.png' })] }),
+    )
+    expect(merged.readers).toHaveLength(1)
+    expect(merged.readers[0]).toMatchObject({ userId: 'u1', name: 'Sam', avatarUrl: 'https://x/p.png' })
+  })
+
+  it('keeps genuinely different readers apart', () => {
+    const merged = mergeStates(
+      state([], { readers: [reader('a', { name: 'Sam' })] }),
+      state([], { readers: [reader('b', { name: 'Alex' })] }),
+    )
+    expect(merged.readers.map((r) => r.name).sort()).toEqual(['Alex', 'Sam'])
+  })
+
+  it('fills in a photo the other device had', () => {
+    const merged = mergeStates(
+      state([], { readers: [reader('a', { name: 'Sam' })] }),
+      state([], { readers: [reader('a', { avatarUrl: 'https://x/p.png' })] }),
+    )
+    expect(merged.readers[0]).toMatchObject({ name: 'Sam', avatarUrl: 'https://x/p.png' })
   })
 })

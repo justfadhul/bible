@@ -90,13 +90,30 @@ the same guard as stored data. A corrupt value yields empty state, never a crash
 
 Settings has **Export JSON**, **Import JSON**, and a **Reset** that requires typing `RESET`.
 
-### One addition to the schema
+### Schema version 2 — readers
 
-`readerNames` is not in the original spec. Without it the two checkboxes read "Reader A" and
-"Reader B", which is a cold thing to look at every morning. It is additive and optional —
-`normalizeState()` supplies defaults when it is absent, so older exports import cleanly. If you
-would rather not have it, delete the field from `emptyState()`, the "Who is reading" panel in
-`Settings.jsx`, and the two labels in `TodayCard.jsx`.
+v1 stored exactly two readers as `readerNames: {a, b}` with a per-reading
+`readBy: {a: bool, b: bool}`. v2 generalises that to a list, because the app now supports up to
+eight people:
+
+```js
+readers:  [{ id, name, avatarUrl, userId, email }]
+readBy:   [readerId, …]
+```
+
+`normalizeState()` upgrades v1 data and v1 exports in place, so nobody loses a history to the
+change — 9 tests cover that path specifically, including files with no `version` field and
+re-normalising an already-upgraded file.
+
+A reader has a name and a picture, both optional. Signing in fills the name in from the email
+address (`sam.okonkwo@…` → "Sam Okonkwo") and links the account to a reader already on the device
+rather than adding a stranger to the list. Names are free text with a row of borrowable ones a tap
+away. Photos are cropped square and downscaled to 256px before they go anywhere; signed in, your
+own photo uploads to Supabase Storage under a folder named after your user id, so the others see
+it and nobody can overwrite anyone else's.
+
+Removing a reader also removes their ticks — leaving them behind would show a reading as read by
+somebody who is no longer in the list.
 
 ## Sharing a history between two devices (Supabase)
 
@@ -153,6 +170,26 @@ recomputes the character budget from the real advance width. All 15 category nam
 split across two balanced lines where needed; wheel 2 truncates and the reveal card carries the full
 topic.
 
+## Motion and touch
+
+The disc is the only thing that rotates, and it rotates as a wrapper `<div>` rather than an SVG
+`<g>`. Rotating a group makes the browser re-rasterise two dozen glyphs every frame; rotating a
+div promotes the disc to one composited layer the compositor can spin without touching the main
+thread.
+
+It runs on the Web Animations API rather than a CSS transition, which means the animation object
+can be sampled. Each frame the wheel reads its real transform matrix, works out which segment is
+under the pointer, and reports a detent when that changes — so the haptic ticks come from the
+wheel's actual position rather than a guess, and they thin out on their own as it slows, because
+the crossings genuinely do. It ends with about a degree of overshoot and settle, well inside the
+narrowest segment (15.6°), so the landing stays exact.
+
+**Vibration is Android-only in practice.** iOS Safari has never implemented
+`navigator.vibrate`, and no feature detection changes that — on an iPhone the spin is silent and
+everything else is identical. Where it does work: short ticks as segments pass, a firmer note on
+landing, and light taps on presses and toggles. There is an off switch in Settings, and
+`prefers-reduced-motion` mutes it along with the animation.
+
 ## Accessibility
 
 - Every text colour clears WCAG AA against the surface it sits on. Category names in the archive
@@ -173,7 +210,7 @@ These are measured, not assumed — see the audit results below.
 |---|---|
 | Catalog contract | 286 entries, 15 categories, ids 1–286 unique and contiguous, no duplicate topics or references |
 | No duplicated content | 26 source files scanned against 1,179 catalog strings — clean |
-| Unit tests | 68 passing |
+| Unit tests | 96 passing |
 | Simulation | 200 playthroughs × 286 spins = 57,200 spins; every run produced all 286 entries with zero repeats; the 287th spin returned the completion state every time; 725,735 dead-segment checks and 114,400 landing checks all held |
 
 Browser checks (Chromium at 380px), all passing:
