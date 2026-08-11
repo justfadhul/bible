@@ -22,12 +22,56 @@ import * as haptics from '../lib/haptics.js'
  *
  * The beat between the stages is not dead time — it is the moment you read
  * which category came up, before the wheel becomes that category's passages.
+ * It is sized for that: a second and a bit is what an unfamiliar two- or
+ * three-word phrase takes to land, and anything under it is a flicker you
+ * notice without reading. The two stages give back what it costs, so the whole
+ * sequence still finishes on the same 6.7.
  */
-const STAGE_1_MS = 3000
-const HANDOVER_MS = 500
-const STAGE_2_MS = 2900
+const STAGE_1_MS = 2800
+const HANDOVER_MS = 1150
+const STAGE_2_MS = 2450
 const SETTLE_MS = 300
 export const TOTAL_SPIN_MS = STAGE_1_MS + HANDOVER_MS + STAGE_2_MS + SETTLE_MS // 6700
+
+/** The face swap happens behind the name plate, well before it lifts. */
+const FACE_SWAP_MS = 780
+/** Reduced motion still gets the name — reading it is information, not motion. */
+const REDUCED_REVEAL_MS = 1000
+
+/**
+ * The category, named, over the wheel it just came off.
+ *
+ * Deliberately opaque and centred rather than a caption somewhere below: the
+ * wheel behind it has stopped and is about to become a different wheel, so
+ * this is the one moment where nothing else on screen is worth looking at.
+ * It is aria-hidden because the same words go to the live region in the same
+ * tick, and hearing them twice is worse than not seeing them once.
+ */
+function CategoryPlate({ category, showing }) {
+  if (!category) return null
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 grid place-items-center px-5"
+      style={{
+        opacity: showing ? 1 : 0,
+        transform: showing ? 'scale(1)' : 'scale(0.94)',
+        transition: 'opacity .24s var(--ease), transform .4s var(--ease-spring)',
+      }}
+    >
+      <div className="rounded-r4 bg-raised px-5 py-4 text-center" style={{ boxShadow: 'var(--e4)' }}>
+        <span
+          className="mx-auto mb-2.5 block h-1.5 w-9 rounded-full"
+          style={{ background: category.color }}
+        />
+        <p className="eyebrow">Category</p>
+        <p className="mt-1.5 text-balance font-serif text-xl leading-tight font-semibold text-ink">
+          {category.name}
+        </p>
+      </div>
+    </div>
+  )
+}
 
 const toCategorySegments = (cats) => cats.map((c) => ({ key: c.id, label: c.name, color: c.color }))
 const toEntrySegments = (entries, color) =>
@@ -39,6 +83,9 @@ export default function WheelView({ completedIds, onLanded, onAnnounce, exhauste
   const [spunSegments, setSpunSegments] = useState(null) // null → the idle category wheel
   const [rotation, setRotation] = useState(0)
   const [duration, setDuration] = useState(0)
+  // The category the first wheel landed on, held in state rather than read off
+  // planRef, because this one is drawn on screen and a ref does not re-render.
+  const [reveal, setReveal] = useState(null)
   const planRef = useRef(null)
   const timers = useRef([])
   // Each stage advances exactly once, whether it was the transition ending or
@@ -70,6 +117,7 @@ export default function WheelView({ completedIds, onLanded, onAnnounce, exhauste
     setSpunSegments(null)
     setRotation(0)
     setDuration(0)
+    setReveal(null)
     onLanded(plan)
   }, [onLanded])
 
@@ -87,11 +135,18 @@ export default function WheelView({ completedIds, onLanded, onAnnounce, exhauste
 
       if (stage === 'stage1') {
         setPhase('handover')
+        // Name it out loud and on screen at the same moment. The plate holds
+        // for the whole handover; it is the only place the category is ever
+        // stated, since by the next stage the wheel has already become its
+        // passages and there is nothing left on screen that says where they
+        // came from.
+        setReveal(plan.category)
         onAnnounce?.(`${plan.category.name}. Now choosing the passage.`)
-        // Swap the faces mid-fade, then carry straight on from where the wheel
-        // already is. Resetting to zero would make the disc jump back a turn
-        // between the stages, which is the one thing a real wheel cannot do.
-        after(200, () => setSpunSegments(toEntrySegments(plan.entries, plan.category.color)))
+        // Swap the faces behind the plate, then carry straight on from where
+        // the wheel already is. Resetting to zero would make the disc jump back
+        // a turn between the stages, which is the one thing a real wheel cannot
+        // do.
+        after(FACE_SWAP_MS, () => setSpunSegments(toEntrySegments(plan.entries, plan.category.color)))
         after(HANDOVER_MS, () => {
           setDuration(STAGE_2_MS)
           setPhase('stage2')
@@ -133,12 +188,20 @@ export default function WheelView({ completedIds, onLanded, onAnnounce, exhauste
     haptics.tap()
 
     if (reduced) {
-      // No theatre: seat the wheel on the chosen passage and cross-fade.
+      // No theatre: seat the wheel on the chosen passage and cross-fade. The
+      // category still gets its beat — with no visible first wheel this is the
+      // only chance to see where the passage came from, so skipping it here
+      // would make the reduced-motion path the one that tells you less.
       setSpunSegments(toEntrySegments(plan.entries, plan.category.color))
       setDuration(0)
       setRotation(computeFinalRotation({ targetIndex: plan.entryIndex, count: plan.entries.length, turns: 0 }))
-      setPhase('landing')
-      after(220, finish)
+      setReveal(plan.category)
+      setPhase('handover')
+      onAnnounce?.(`${plan.category.name}. Now choosing the passage.`)
+      after(REDUCED_REVEAL_MS, () => {
+        setPhase('landing')
+        after(160, finish)
+      })
       return
     }
 
@@ -170,23 +233,26 @@ export default function WheelView({ completedIds, onLanded, onAnnounce, exhauste
     <div className="space-y-6">
       {/* The wheel sits in a recessed well — inset means something lives in
           it, and the rim reads as the edge of the dial rather than a border. */}
-      <div className="sunken rounded-full p-3">
-        <Wheel
-          segments={segments}
-          rotation={rotation}
-          durationMs={duration}
-          dimmed={phase === 'handover'}
-          onSettled={() => settle(phase)}
-          onTick={haptics.tick}
-          hubLabel={exhausted ? '✓' : remaining}
-          hubSub={exhausted ? 'ALL READ' : 'LEFT'}
-          maxLines={showingEntries ? 1 : 2}
-          title={
-            showingEntries
-              ? `Passage wheel: ${segments.length} unread entries`
-              : `Category wheel: ${segments.length} categories with unread entries`
-          }
-        />
+      <div className="relative">
+        <div className="sunken rounded-full p-3">
+          <Wheel
+            segments={segments}
+            rotation={rotation}
+            durationMs={duration}
+            dimmed={phase === 'handover'}
+            onSettled={() => settle(phase)}
+            onTick={haptics.tick}
+            hubLabel={exhausted ? '✓' : remaining}
+            hubSub={exhausted ? 'ALL READ' : 'LEFT'}
+            maxLines={showingEntries ? 1 : 2}
+            title={
+              showingEntries
+                ? `Passage wheel: ${segments.length} unread entries`
+                : `Category wheel: ${segments.length} categories with unread entries`
+            }
+          />
+        </div>
+        <CategoryPlate category={reveal} showing={phase === 'handover'} />
       </div>
 
       <div className="space-y-3">
