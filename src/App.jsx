@@ -231,13 +231,17 @@ export default function App() {
 
   const [hapticsOn, setHapticsOn] = useState(haptics.hapticsEnabled)
   const hapticsPrefs = {
-    supported: haptics.canVibrate(),
+    // 'vibrate' | 'switch' | 'none' — Settings says something different for
+    // each, rather than hiding the control on the one device where the reader
+    // most needs to be told why nothing is happening.
+    mode: haptics.support(),
     enabled: hapticsOn,
     set: (v) => {
       haptics.setHapticsEnabled(v)
       setHapticsOn(v)
       if (v) haptics.toggle()
     },
+    test: haptics.test,
   }
 
   const isDark = resolvedTheme(theme) === 'dark'

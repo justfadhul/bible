@@ -24,6 +24,69 @@ function Group({ header, footer, children, className = '' }) {
   )
 }
 
+/**
+ * Vibration.
+ *
+ * This group is always shown, including on a device that cannot vibrate at
+ * all. Hiding it there was the wrong instinct: someone who has just spun the
+ * wheel and felt nothing goes looking for the setting, and finding no setting
+ * tells them the app is broken rather than that their browser has no such
+ * ability. So the control is replaced by the reason, and there is a Test
+ * button so nobody has to burn their one spin a day finding out.
+ */
+function Haptics({ hx }) {
+  const [result, setResult] = useState(null)
+  if (!hx) return null
+
+  const FOOTERS = {
+    vibrate:
+      'Short buzzes as the wheel ticks past each segment, and one firmer note when it stops. Silent mode and Do Not Disturb can still suppress them.',
+    switch:
+      'iOS has no vibration API, so this borrows the tap Safari plays when a switch flips. It is a single tap rather than a buzz, and it needs iOS 17.4 or later with System Haptics on in Settings → Sounds & Haptics.',
+    none: 'Vibration is an Android and iPhone ability. On a desktop browser there is nothing to buzz.',
+  }
+
+  const runTest = () => {
+    const { fired } = hx.test()
+    setResult(
+      fired
+        ? 'Sent. If you felt nothing, check that your phone is not on silent and that system haptics are on.'
+        : 'This browser turned it down — nothing was sent.',
+    )
+  }
+
+  return (
+    <Group header="Feedback" footer={FOOTERS[hx.mode]}>
+      {hx.mode === 'none' ? (
+        <p className="text-sm text-ink-2">This browser has no way to vibrate.</p>
+      ) : (
+        <div className="space-y-3">
+          <Segmented
+            label="Vibration"
+            value={hx.enabled ? 'on' : 'off'}
+            onChange={(v) => {
+              setResult(null)
+              hx.set(v === 'on')
+            }}
+            options={[
+              { value: 'on', label: 'Vibration on' },
+              { value: 'off', label: 'Off' },
+            ]}
+          />
+          <Button variant="secondary" className="w-full" onClick={runTest}>
+            Test it now
+          </Button>
+          {result && (
+            <p className="px-1 text-xs leading-relaxed text-ink-2" role="status">
+              {result}
+            </p>
+          )}
+        </div>
+      )}
+    </Group>
+  )
+}
+
 export default function Settings({ state, sync, theme, onTheme, onImport, onReset, onUpdateReader, onAddReader, onRemoveReader, haptics: hx }) {
   const fileRef = useRef(null)
   const [status, setStatus] = useState(null)
@@ -99,22 +162,7 @@ export default function Settings({ state, sync, theme, onTheme, onImport, onRese
         />
       </Group>
 
-      {hx?.supported && (
-        <Group
-          header="Feedback"
-          footer="Short buzzes as the wheel ticks past each segment, and one firmer note when it stops."
-        >
-          <Segmented
-            label="Vibration"
-            value={hx.enabled ? 'on' : 'off'}
-            onChange={(v) => hx.set(v === 'on')}
-            options={[
-              { value: 'on', label: 'Vibration on' },
-              { value: 'off', label: 'Off' },
-            ]}
-          />
-        </Group>
-      )}
+      <Haptics hx={hx} />
 
       <Readers
         state={state}

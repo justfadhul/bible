@@ -26,3 +26,4 @@ dist/
 .shot3.mjs
 .spin.mjs
 .auth.mjs
+.plate.mjs
