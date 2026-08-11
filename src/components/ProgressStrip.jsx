@@ -16,7 +16,7 @@ export default function ProgressStrip({ completedIds }) {
           <span className="text-xl">{read}</span>
           <span className="text-ink-3 text-sm"> of {TOTAL} read</span>
         </p>
-        <p className="text-2xs text-ink-3 tabular-nums">{Math.round((read / TOTAL) * 100)}%</p>
+        <p className="text-2xs text-ink-3 tabular-nums">{Math.floor((read / TOTAL) * 100)}%</p>
       </div>
 
       <div

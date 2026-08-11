@@ -3,6 +3,7 @@ import {
   computeFinalRotation,
   resolveIndexAtPointer,
   segmentCenter,
+  segmentPath,
   stepFor,
   pointerAngle,
   inkOn,
@@ -69,6 +70,35 @@ describe('rotation is the exact inverse of the pointer reading', () => {
         expect(angle).toBeLessThan((t + 1) * stepFor(count))
       }
     }
+  })
+})
+
+describe('segment paths', () => {
+  it('draws a real ring for a single full-circle segment', () => {
+    // An SVG arc cannot span 360°: the endpoints coincide and the path
+    // collapses to nothing, leaving the last category invisible on the wheel.
+    const full = segmentPath(50, 50, 46, 12, 0, 360)
+    expect(full).toMatch(/^M .*A .*A .*Z M .*A .*A .*Z$/)
+    // Two subpaths — the outer edge and the hub — swept in opposite directions.
+    expect(full.match(/M /g)).toHaveLength(2)
+    expect(full).toContain('A 46 46 0 1 1')
+    expect(full).toContain('A 12 12 0 1 0')
+  })
+
+  it('draws a disc when there is no hub', () => {
+    const disc = segmentPath(50, 50, 46, 0, 0, 360)
+    expect(disc.match(/M /g)).toHaveLength(1)
+  })
+
+  it('still draws ordinary wedges as arcs', () => {
+    const wedge = segmentPath(50, 50, 46, 12, 0, 24)
+    expect(wedge.match(/M /g)).toHaveLength(1)
+    expect(wedge).toContain('L ')
+  })
+
+  it('sets the large-arc flag only past a half turn', () => {
+    expect(segmentPath(50, 50, 46, 12, 0, 90)).toContain('A 46 46 0 0 1')
+    expect(segmentPath(50, 50, 46, 12, 0, 200)).toContain('A 46 46 0 1 1')
   })
 })
 

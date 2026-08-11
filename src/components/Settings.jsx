@@ -64,7 +64,7 @@ export default function Settings({ state, onImport, onReset, onReaderName }) {
     onReset()
     setPendingReset(false)
     setConfirmText('')
-    setStatus({ kind: 'ok', text: 'Everything cleared. All 286 passages are back in the pool.' })
+    setStatus({ kind: 'ok', text: `Everything cleared. All ${TOTAL} passages are back in the pool.` })
   }
 
   return (

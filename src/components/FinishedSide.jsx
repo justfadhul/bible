@@ -148,7 +148,7 @@ export default function FinishedSide({ state }) {
         <Stat value={stats.read} label="read" sub={`${stats.remaining} to come`} />
         <Stat value={stats.current} label="day streak" sub={stats.current === 0 ? 'none yet' : 'current'} />
         <Stat value={stats.longest} label="longest" sub={`${stats.days} days read`} />
-        <Stat value={`${Math.round(stats.fraction * 100)}%`} label="of catalog" sub={`of ${TOTAL}`} />
+        <Stat value={`${Math.floor(stats.fraction * 100)}%`} label="of catalog" sub={`of ${TOTAL}`} />
         <Stat value={stats.bothRead} label="read by both" sub="ticked twice" />
         <Stat value={stats.withNotes} label="with notes" sub={`of ${stats.read || 0}`} />
       </div>

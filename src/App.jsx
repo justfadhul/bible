@@ -261,7 +261,9 @@ export default function App() {
 function CompletionState({ state, onOpenArchive }) {
   return (
     <div className="py-10 text-center space-y-5">
-      <p className="eyebrow">286 of 286</p>
+      <p className="eyebrow">
+        {TOTAL} of {TOTAL}
+      </p>
       <h1 className="font-serif text-3xl leading-tight text-ink">You have read the whole catalog.</h1>
       <p className="font-serif text-ink-2 leading-relaxed max-w-sm mx-auto">
         Every passage has come up exactly once. Nothing is left in the pool, so the wheel has nothing to

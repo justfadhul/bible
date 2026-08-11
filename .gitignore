@@ -12,3 +12,4 @@ dist/
 .crop.mjs
 .a11y.mjs
 .chk.mjs
+.edge.mjs

@@ -35,7 +35,18 @@ export function polar(cx, cy, r, angleDeg) {
  * innerR = 0 produces a pie slice; > 0 produces a ring segment.
  */
 export function segmentPath(cx, cy, outerR, innerR, startAngle, endAngle) {
-  const large = endAngle - startAngle > 180 ? 1 : 0
+  const sweep = endAngle - startAngle
+
+  // A single-segment wheel — the last category, or its last entry — spans the
+  // full 360°, where the two arc endpoints coincide and an arc command
+  // collapses to nothing. Draw it as a closed ring (or disc) instead.
+  if (sweep >= 359.999) {
+    const ring = (r, dir) =>
+      `M ${cx} ${cy - r} A ${r} ${r} 0 1 ${dir} ${cx} ${cy + r} A ${r} ${r} 0 1 ${dir} ${cx} ${cy - r} Z`
+    return innerR > 0 ? `${ring(outerR, 1)} ${ring(innerR, 0)}` : ring(outerR, 1)
+  }
+
+  const large = sweep > 180 ? 1 : 0
   const o1 = polar(cx, cy, outerR, startAngle)
   const o2 = polar(cx, cy, outerR, endAngle)
   if (innerR <= 0) {

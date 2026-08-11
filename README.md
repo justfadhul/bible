@@ -132,7 +132,7 @@ These are measured, not assumed — see the audit results below.
 |---|---|
 | Catalog contract | 286 entries, 15 categories, ids 1–286 unique and contiguous, no duplicate topics or references |
 | No duplicated content | 26 source files scanned against 1,179 catalog strings — clean |
-| Unit tests | 52 passing |
+| Unit tests | 56 passing |
 | Simulation | 200 playthroughs × 286 spins = 57,200 spins; every run produced all 286 entries with zero repeats; the 287th spin returned the completion state every time; 725,735 dead-segment checks and 114,400 landing checks all held |
 
 Browser checks (Chromium at 380px), all passing:
@@ -143,6 +143,9 @@ Browser checks (Chromium at 380px), all passing:
 - Export → reset → import restores byte-identical state, including notes with quotes and newlines.
 - Reduced motion reveals in ~370ms with no spin.
 - Spin is keyboard-reachable, announced, and focus lands on the result.
+- Near-exhaustion holds: with one category left the wheel draws a full ring (an SVG arc cannot
+  span 360°, so a naive path collapses and the last segment vanishes), and the 286th spin leads to
+  the completion state rather than an error.
 - No console errors; no horizontal overflow at 380px or 768px.
 
 ## Layout
