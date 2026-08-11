@@ -4,7 +4,14 @@ import { emptyState } from './storage.js'
 
 const row = (id, over = {}) => ({ id, dateISO: '2026-03-01', notes: '', readBy: [], ...over })
 
-const state = (completed, over = {}) => ({ ...emptyState(), completed, ...over })
+/** Readers are accounts now, so a roster is a list of user ids. */
+const asReader = (id, over = {}) => ({ id, name: '', avatarUrl: null, userId: id, email: null, ...over })
+const state = (completed, over = {}) => ({
+  ...emptyState(),
+  readers: [asReader('u1'), asReader('u2')],
+  completed,
+  ...over,
+})
 
 describe('mergeStates never loses a reading', () => {
   it('unions both sides', () => {
@@ -35,13 +42,13 @@ describe('field-level merging', () => {
   })
 
   it('unions the read ticks so neither device can un-say the other', () => {
-    const merged = mergeStates(state([row(1, { readBy: ['a'] })]), state([row(1, { readBy: ['b'] })]))
-    expect(new Set(merged.completed[0].readBy)).toEqual(new Set(['a', 'b']))
+    const merged = mergeStates(state([row(1, { readBy: ['u1'] })]), state([row(1, { readBy: ['u2'] })]))
+    expect(new Set(merged.completed[0].readBy)).toEqual(new Set(['u1', 'u2']))
   })
 
   it('drops ticks by readers who survived neither roster', () => {
-    const merged = mergeStates(state([row(1, { readBy: ['a', 'ghost'] })]), state([row(1)]))
-    expect(merged.completed[0].readBy).toEqual(['a'])
+    const merged = mergeStates(state([row(1, { readBy: ['u1', 'ghost'] })]), state([row(1)]))
+    expect(merged.completed[0].readBy).toEqual(['u1'])
   })
 
   it('takes the newer notes when there is a timestamp', () => {
@@ -84,19 +91,31 @@ const reader = (id, over = {}) => ({ id, name: '', avatarUrl: null, userId: null
 describe('merging the reader roster', () => {
   it('takes the shared copy by default', () => {
     const merged = mergeStates(
-      state([], { readers: [reader('a', { name: 'local' })] }),
-      state([], { readers: [reader('a', { name: 'Sam' })] }),
+      state([], { readers: [reader('u1', { userId: 'u1', name: 'local' })] }),
+      state([], { readers: [reader('u1', { userId: 'u1', name: 'Sam' })] }),
     )
     expect(merged.readers[0].name).toBe('Sam')
   })
 
   it('can be told to keep the local names — the first push after pairing', () => {
     const merged = mergeStates(
-      state([], { readers: [reader('a', { name: 'Sam' })] }),
-      state([], { readers: [reader('a', { name: 'Reader A' })] }),
+      state([], { readers: [reader('u1', { userId: 'u1', name: 'Sam' })] }),
+      state([], { readers: [reader('u1', { userId: 'u1', name: 'Old' })] }),
       { preferRemoteNames: false },
     )
     expect(merged.readers[0].name).toBe('Sam')
+  })
+
+  it('brings in a reader this device has never seen — that is how the others arrive', () => {
+    // Somebody signed up on their own phone and joined; their row reaches you
+    // through the shared copy, not through anything you did here.
+    const merged = mergeStates(
+      state([], { readers: [reader('u1', { userId: 'u1', name: 'Sam' })] }),
+      state([], {
+        readers: [reader('u1', { userId: 'u1', name: 'Sam' }), reader('u2', { userId: 'u2', name: 'Alex' })],
+      }),
+    )
+    expect(merged.readers.map((r) => r.name)).toEqual(['Sam', 'Alex'])
   })
 
   it('matches the same person across devices by account, not just by id', () => {

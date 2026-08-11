@@ -105,30 +105,48 @@ the same guard as stored data. A corrupt value yields empty state, never a crash
 
 Settings has **Export JSON**, **Import JSON**, and a **Reset** that requires typing `RESET`.
 
-### Schema version 2 — readers
-
-v1 stored exactly two readers as `readerNames: {a, b}` with a per-reading
-`readBy: {a: bool, b: bool}`. v2 generalises that to a list, because the app now supports up to
-eight people:
+### Schema version 3 — a reader is an account
 
 ```js
-readers:  [{ id, name, avatarUrl, userId, email }]
+readers:  [{ id, name, avatarUrl, userId, email }]   // id IS the auth user id
 readBy:   [readerId, …]
 ```
 
-`normalizeState()` upgrades v1 data and v1 exports in place, so nobody loses a history to the
-change — 9 tests cover that path specifically, including files with no `version` field and
-re-normalising an already-upgraded file.
+v1 stored exactly two readers as `readerNames: {a, b}` with a per-reading `readBy: {a, b}`. v2
+generalised that to a list anyone could add to. **v3 removes the ability to add one at all.**
 
-A reader has a name and a picture, both optional. Signing in fills the name in from the email
-address (`sam.okonkwo@…` → "Sam Okonkwo") and links the account to a reader already on the device
-rather than adding a stranger to the list. Names are free text with a row of borrowable ones a tap
-away. Photos are cropped square and downscaled to 256px before they go anywhere; signed in, your
-own photo uploads to Supabase Storage under a folder named after your user id, so the others see
-it and nobody can overwrite anyone else's.
+Readers are not made, they arrive. Every reader is somebody's signed-in account, and `reader.id`
+*is* their auth user id. The way a second person appears is that they sign up on their own phone
+and enter the group's invite code — not that you type them into a list on yours. A typed-in reader
+was a row nobody could ever sign in as, whose name only you could correct, and whose ticks meant
+"I think they read it" rather than "they said they did".
 
-Removing a reader also removes their ticks — leaving them behind would show a reading as read by
-somebody who is no longer in the list.
+Making the id the user id rather than a local id with a `userId` beside it is what makes ticks
+portable: `readBy: ["<uuid>"]` means the same person on every device that will ever sync, with
+nothing to reconcile.
+
+**The one exception** is you, before you have an account. A device that chose "read on this device"
+carries exactly one reader with no `userId`, so there is somebody to tick. When that person signs
+up, their reader is re-keyed to the new user id and every tick they made is re-keyed with it — the
+history made before signing up is still theirs afterwards. Because at most one reader can lack an
+account, an unnamed one is unambiguously the device's owner, and shows as "You" rather than
+"Reader A".
+
+**Migration.** `normalizeState()` runs v1 → v2 → v3 in sequence, so a two-versions-old export
+travels the whole way rather than being rejected. v2 → v3 re-keys account-backed readers and
+rewrites the ticks that pointed at their old ids, then drops the placeholders v2 created on every
+device — but only ones that were never named, never given a photo and never ticked anything. A
+reader anyone actually used survives and can be dismissed by hand. No reading is ever dropped, and
+a device is never left with nobody on it. `getState()` writes the upgraded copy straight back, so
+it happens once rather than on every load. 15 tests cover that path alone.
+
+Names are free text with a row of borrowable ones a tap away; you edit your own and nobody else's.
+Photos are cropped square and downscaled to 256px before they go anywhere; signed in, your own
+photo uploads to Supabase Storage under a folder named after your user id, so the others see it
+and nobody can overwrite anyone else's.
+
+Removing is only ever offered for a leftover local reader, and takes their ticks with it —
+somebody with an account leaves by leaving the group, on their own device.
 
 ## Sharing a history between two devices (Supabase)
 
@@ -144,10 +162,12 @@ security. The service-role key bypasses RLS entirely and must never appear in
 `supabase/migrations/0001_shared_history.sql`, Run. It is idempotent, so re-running after a change
 to the file is safe and only replaces what moved.
 
-Then, in Settings → Sharing: each of you signs in with an email and password, one
-creates a shared history and reads out the eight-character invite code, the
-other enters it. From then on both devices read and write the same rows, and
-changes appear on the other phone without a refresh.
+Then, in Settings → Sharing: **each of you creates your own account** with an
+email and a password, one of you starts a shared history and reads out the
+eight-character invite code, and the others enter it. Everyone who joins
+becomes a reader the whole group can see, up to eight. From then on every
+device reads and writes the same rows, and changes appear on the other phones
+without a refresh.
 
 **How it is secured.** Every table has RLS on, and every policy resolves
 through `is_pair_member()`, which is `SECURITY DEFINER` so checking your own

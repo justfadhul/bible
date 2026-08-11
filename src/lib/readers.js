@@ -1,10 +1,13 @@
 /**
  * Readers: who is doing the reading, what they are called, and their picture.
  *
- * A reader is a row in state.readers. When someone signs in, their auth user
- * is linked to a reader so the name and photo follow them between devices; a
- * reader with no userId is a local one, which is how the app keeps working
- * signed out.
+ * A reader is an account. `reader.id` is the auth user id, so a tick means the
+ * same person on every device that will ever sync.
+ *
+ * The one exception is the reader a device carries before anyone has signed
+ * up — no userId, and only ever one of them. That is what lets the app work
+ * with no account at all, and it is claimed by the first account to sign in
+ * here rather than being left behind.
  */
 
 /**
@@ -28,13 +31,21 @@ export function nameFromEmail(email) {
     .slice(0, 60)
 }
 
-/** What to show for a reader, falling back through name → email → position. */
+/**
+ * What to show for a reader: a chosen name, then the email, then who they are.
+ *
+ * A reader with no account can only be one person — the owner of this device,
+ * before they signed up — because that is the one reader the app will create
+ * without an account behind it. So "You" is a fact here, not a guess, and it
+ * beats calling somebody "Reader A" on their own phone.
+ */
 export function displayName(reader, index = 0) {
-  return (
-    reader?.name?.trim() ||
-    nameFromEmail(reader?.email) ||
-    `Reader ${String.fromCharCode(65 + index)}`
-  )
+  const chosen = reader?.name?.trim()
+  if (chosen) return chosen
+  const fromEmail = nameFromEmail(reader?.email)
+  if (fromEmail) return fromEmail
+  if (reader && !reader.userId) return 'You'
+  return `Reader ${String.fromCharCode(65 + index)}`
 }
 
 /** Up to two letters for the fallback avatar. */

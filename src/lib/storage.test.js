@@ -7,23 +7,27 @@ import {
   undoSpin,
   rowForDate,
   byNewest,
-  addReader,
   removeReader,
   updateReader,
   linkAccount,
 } from './state.js'
+
+/** The local reader's id is generated per device, so compare around it. */
+const shape = (s) => ({ ...s, readers: s.readers.map(({ id, ...r }) => r) })
+const meId = (s) => s.readers[0].id
 import { currentStreak, longestStreak } from './stats.js'
 import { nameFromEmail, displayName, initials, NAME_SUGGESTIONS } from './readers.js'
 
 describe('normalizeState survives bad input', () => {
   it.each([null, undefined, 0, 'nonsense', [], true])('falls back to empty for %p', (bad) => {
     const { state } = normalizeState(bad)
-    expect(state).toEqual(emptyState())
+    expect(shape(state)).toEqual(shape(emptyState()))
+    expect(state.readers).toHaveLength(1)
   })
 
   it('drops malformed rows rather than the whole file', () => {
     const { state, problems } = normalizeState({
-      version: 2,
+      version: 3,
       readers: [{ id: 'a', name: 'Sam' }],
       completed: [
         { id: 5, dateISO: '2026-01-02', notes: 'ok', readBy: ['a'] },
@@ -43,32 +47,37 @@ describe('normalizeState survives bad input', () => {
 
   it('drops ticks by readers who no longer exist', () => {
     const { state } = normalizeState({
-      version: 2,
+      version: 3,
       readers: [{ id: 'a', name: 'Sam' }],
       completed: [{ id: 1, dateISO: '2026-01-01', readBy: ['a', 'ghost', 'a'] }],
     })
     expect(state.completed[0].readBy).toEqual(['a'])
   })
 
-  it('restores default readers rather than leaving nobody', () => {
-    const { state } = normalizeState({ version: 2, readers: [], completed: [] })
-    expect(state.readers).toHaveLength(2)
+  it('restores one reader rather than leaving nobody', () => {
+    const { state } = normalizeState({ version: 3, readers: [], completed: [] })
+    expect(state.readers).toHaveLength(1)
+    expect(state.readers[0].userId).toBeNull()
   })
 
-  it('caps the reader list', () => {
-    const readers = Array.from({ length: MAX_READERS + 4 }, (_, i) => ({ id: `r${i}`, name: `R${i}` }))
-    const { state } = normalizeState({ version: 2, readers, completed: [] })
+  it('caps the reader list at the size join_pair() allows', () => {
+    const readers = Array.from({ length: MAX_READERS + 4 }, (_, i) => ({
+      id: `u${i}`,
+      userId: `u${i}`,
+      name: `R${i}`,
+    }))
+    const { state } = normalizeState({ version: 3, readers, completed: [] })
     expect(state.readers).toHaveLength(MAX_READERS)
   })
 
   it('rejects an avatar that is not an image data URI or an https URL', () => {
     const bad = ['javascript:alert(1)', 'http://insecure/x.png', 'data:text/html;base64,AAAA', {}, 42]
     for (const avatarUrl of bad) {
-      const { state } = normalizeState({ version: 2, readers: [{ id: 'a', avatarUrl }], completed: [] })
+      const { state } = normalizeState({ version: 3, readers: [{ id: 'a', avatarUrl }], completed: [] })
       expect(state.readers[0].avatarUrl).toBeNull()
     }
     const ok = normalizeState({
-      version: 2,
+      version: 3,
       readers: [{ id: 'a', avatarUrl: 'https://example.com/a.png' }],
       completed: [],
     })
@@ -77,9 +86,10 @@ describe('normalizeState survives bad input', () => {
 
   it('round-trips a real state exactly (export → import)', () => {
     let s = emptyState()
+    const me = meId(s)
     s = recordSpin(s, 12, '2026-02-01')
     s = setNotes(s, 12, 'we argued about verse 4')
-    s = setReadBy(s, 12, 'a', true)
+    s = setReadBy(s, 12, me, true)
     s = recordSpin(s, 200, '2026-02-02')
     const exported = JSON.parse(JSON.stringify(s))
     const { state: imported, problems } = normalizeState(exported)
@@ -182,65 +192,114 @@ describe('state transitions', () => {
 
   it('ticks and unticks a reader without disturbing the others', () => {
     let s = recordSpin(emptyState(), 1, '2026-03-04')
-    s = setReadBy(s, 1, 'a', true)
-    s = setReadBy(s, 1, 'b', true)
-    expect(s.completed[0].readBy).toEqual(['a', 'b'])
-    s = setReadBy(s, 1, 'a', false)
-    expect(s.completed[0].readBy).toEqual(['b'])
+    s = setReadBy(s, 1, 'u1', true)
+    s = setReadBy(s, 1, 'u2', true)
+    expect(s.completed[0].readBy).toEqual(['u1', 'u2'])
+    s = setReadBy(s, 1, 'u1', false)
+    expect(s.completed[0].readBy).toEqual(['u2'])
     // Setting the same value again is a no-op, not a duplicate.
-    const same = setReadBy(s, 1, 'b', true)
-    expect(same.completed[0].readBy).toEqual(['b'])
+    const same = setReadBy(s, 1, 'u2', true)
+    expect(same.completed[0].readBy).toEqual(['u2'])
   })
 })
 
-describe('managing readers', () => {
-  it('adds up to the limit and no further', () => {
-    let s = emptyState()
-    for (let i = 0; i < MAX_READERS + 3; i++) s = addReader(s, { name: `R${i}` })
-    expect(s.readers).toHaveLength(MAX_READERS)
+describe('readers are accounts, not rows anyone can add', () => {
+  it('a fresh device has exactly one reader, and it is unclaimed', () => {
+    const s = emptyState()
+    expect(s.readers).toHaveLength(1)
+    expect(s.readers[0]).toMatchObject({ name: '', userId: null, email: null, avatarUrl: null })
   })
 
-  it('removing a reader also removes their ticks', () => {
-    let s = addReader(emptyState(), { id: 'c', name: 'Chris' })
+  it('there is no way to invent a second one', async () => {
+    const stateModule = await import('./state.js')
+    expect(stateModule.addReader).toBeUndefined()
+  })
+
+  it('removing a leftover local reader also removes their ticks', () => {
+    let s = { ...emptyState(), readers: [makeReader({ id: 'me' }), makeReader({ id: 'old', name: 'Chris' })] }
     s = recordSpin(s, 1, '2026-03-01')
-    s = setReadBy(s, 1, 'a', true)
-    s = setReadBy(s, 1, 'c', true)
-    s = removeReader(s, 'c')
-    expect(s.readers.map((r) => r.id)).toEqual(['a', 'b'])
-    expect(s.completed[0].readBy).toEqual(['a'])
+    s = setReadBy(s, 1, 'me', true)
+    s = setReadBy(s, 1, 'old', true)
+    s = removeReader(s, 'old')
+    expect(s.readers.map((r) => r.id)).toEqual(['me'])
+    expect(s.completed[0].readBy).toEqual(['me'])
+  })
+
+  it('refuses to remove somebody who has an account', () => {
+    // Their account is theirs to leave with; it is not yours to delete.
+    const s = {
+      ...emptyState(),
+      readers: [makeReader({ userId: 'u1', name: 'Sam' }), makeReader({ userId: 'u2', name: 'Alex' })],
+    }
+    expect(removeReader(s, 'u2')).toBe(s)
   })
 
   it('refuses to remove the last reader', () => {
-    let s = emptyState()
-    s = removeReader(s, 'b')
-    s = removeReader(s, 'a')
-    expect(s.readers).toHaveLength(1)
+    const s = emptyState()
+    expect(removeReader(s, meId(s))).toBe(s)
   })
 
   it('updates a reader in place', () => {
-    const s = updateReader(emptyState(), 'a', { name: 'Sam', avatarUrl: 'https://x/y.png' })
+    const s0 = emptyState()
+    const s = updateReader(s0, meId(s0), { name: 'Sam', avatarUrl: 'https://x/y.png' })
     expect(s.readers[0]).toMatchObject({ name: 'Sam', avatarUrl: 'https://x/y.png' })
-    expect(s.readers[1].name).toBe('Reader B')
   })
 })
 
-describe('linking a signed-in account', () => {
-  it('adopts the first unlinked reader rather than adding a stranger', () => {
+describe('signing up turns you into a reader', () => {
+  it('adopts the local reader rather than adding a stranger beside it', () => {
     const s = linkAccount(emptyState(), { userId: 'u1', email: 'sam@example.com', name: 'Sam' })
-    expect(s.readers).toHaveLength(2)
-    expect(s.readers[0]).toMatchObject({ id: 'a', userId: 'u1', email: 'sam@example.com' })
+    expect(s.readers).toHaveLength(1)
+    expect(s.readers[0]).toMatchObject({ id: 'u1', userId: 'u1', email: 'sam@example.com' })
+  })
+
+  it('carries the ticks over to the new id', () => {
+    // The whole point: history made before signing up is still yours after.
+    let s = emptyState()
+    const me = meId(s)
+    s = recordSpin(s, 4, '2026-03-01')
+    s = setReadBy(s, 4, me, true)
+    s = linkAccount(s, { userId: 'u1', email: 'sam@example.com' })
+    expect(s.completed[0].readBy).toEqual(['u1'])
+    expect(s.readers[0].id).toBe('u1')
+  })
+
+  it('leaves other readers\' ticks alone while re-keying yours', () => {
+    let s = { ...emptyState(), readers: [makeReader({ id: 'me' }), makeReader({ userId: 'u2', name: 'Alex' })] }
+    s = recordSpin(s, 4, '2026-03-01')
+    s = setReadBy(s, 4, 'me', true)
+    s = setReadBy(s, 4, 'u2', true)
+    s = linkAccount(s, { userId: 'u1' })
+    expect(s.completed[0].readBy.sort()).toEqual(['u1', 'u2'])
   })
 
   it('re-links the same account to the same reader, not a new one', () => {
     let s = linkAccount(emptyState(), { userId: 'u1', email: 'sam@example.com' })
+    const once = s
     s = linkAccount(s, { userId: 'u1', email: 'sam@example.com' })
     expect(s.readers.filter((r) => r.userId === 'u1')).toHaveLength(1)
+    // And is a genuine no-op, so App does not commit a pointless write.
+    expect(s).toBe(once)
   })
 
   it('does not overwrite a name the reader has chosen', () => {
-    let s = updateReader(emptyState(), 'a', { name: 'Barnabas' })
+    const s0 = emptyState()
+    let s = updateReader(s0, meId(s0), { name: 'Barnabas' })
     s = linkAccount(s, { userId: 'u1', email: 'sam@example.com', name: 'Sam' })
     expect(s.readers[0].name).toBe('Barnabas')
+  })
+
+  it('does not let auth metadata clobber a photo you uploaded', () => {
+    const s0 = emptyState()
+    let s = updateReader(s0, meId(s0), { avatarUrl: 'https://mine/photo.png' })
+    s = linkAccount(s, { userId: 'u1', avatarUrl: 'https://provider/guess.png' })
+    expect(s.readers[0].avatarUrl).toBe('https://mine/photo.png')
+  })
+
+  it('appends when every reader already belongs to somebody else', () => {
+    const s0 = { ...emptyState(), readers: [makeReader({ userId: 'u2', name: 'Alex' })] }
+    const s = linkAccount(s0, { userId: 'u1', email: 'sam@example.com' })
+    expect(s.readers.map((r) => r.id)).toEqual(['u2', 'u1'])
   })
 
   it('ignores a missing user id', () => {
@@ -258,16 +317,20 @@ describe('reader display', () => {
     expect(nameFromEmail(undefined)).toBe('')
   })
 
-  it('falls back name → email → position', () => {
+  it('falls back name → email → who they are', () => {
     expect(displayName({ name: 'Barnabas', email: 'x@y.z' }, 0)).toBe('Barnabas')
     expect(displayName({ name: '  ', email: 'sam@y.z' }, 0)).toBe('Sam')
-    expect(displayName({ name: '', email: '' }, 1)).toBe('Reader B')
+    // No account can only mean this device's own reader, so say so.
+    expect(displayName({ name: '', email: '', userId: null }, 1)).toBe('You')
+    // Somebody else's account with nothing filled in yet still gets a label.
+    expect(displayName({ name: '', email: '', userId: 'u2' }, 1)).toBe('Reader B')
   })
 
   it('builds initials from whatever it has', () => {
     expect(initials({ name: 'Sam Okonkwo' })).toBe('SO')
     expect(initials({ name: 'Barnabas' })).toBe('BA')
-    expect(initials({ name: '', email: '' }, 0)).toBe('RA')
+    expect(initials({ name: '', email: '', userId: 'u2' }, 0)).toBe('RA')
+    expect(initials({ name: '', email: '', userId: null }, 0)).toBe('YO')
   })
 
   it('offers suggestions that are all usable names', () => {

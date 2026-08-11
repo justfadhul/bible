@@ -104,8 +104,8 @@ function PasswordField({ id, label, value, onChange, hint, error, autoComplete, 
   )
 }
 
-export default function AuthForm({ sync, size = 'md' }) {
-  const [mode, setMode] = useState('signin') // signin | signup | forgot | code
+export default function AuthForm({ sync, size = 'md', initialMode = 'signin' }) {
+  const [mode, setMode] = useState(initialMode) // signin | signup | forgot | code
   const [intent, setIntent] = useState(null) // what the code, once verified, is for
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')

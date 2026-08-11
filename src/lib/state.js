@@ -76,18 +76,28 @@ export function setReadBy(state, entryId, readerId, value) {
 
 /* ── readers ──────────────────────────────────────────────────────────── */
 
-export function addReader(state, over = {}) {
-  if (state.readers.length >= MAX_READERS) return state
-  return { ...state, readers: [...state.readers, makeReader(over)] }
-}
+/**
+ * There is no addReader.
+ *
+ * A reader is an account. The way a second reader comes into existence is
+ * that a second person signs up on their own phone and joins the group with
+ * the invite code — not that somebody types them into a list on one device.
+ * Removing that function is the whole point of the change, so it is worth a
+ * comment rather than a silent deletion.
+ */
 
 /**
  * Removes a reader, and with them every tick they made — leaving those behind
  * would show a reading as read by somebody who is no longer in the list.
- * The last reader cannot be removed; there has to be somebody.
+ *
+ * Only ever used on readers with no account: leftovers from before readers
+ * were accounts. Somebody with an account leaves by leaving the group, which
+ * is their decision to make on their own device, not yours.
  */
 export function removeReader(state, readerId) {
   if (state.readers.length <= 1) return state
+  const target = state.readers.find((r) => r.id === readerId)
+  if (!target || target.userId) return state
   return {
     ...state,
     readers: state.readers.filter((r) => r.id !== readerId),
@@ -105,29 +115,59 @@ export function updateReader(state, readerId, patch) {
 }
 
 /**
- * Attaches a signed-in account to a reader.
+ * Turns a signed-in account into a reader.
  *
- * Prefers a reader already linked to this account, then the first unlinked
- * one — so signing in on a device that has been used solo adopts the existing
- * reader and its history rather than adding a stranger to the list.
+ * On a device that has been read on solo, the existing local reader is
+ * adopted rather than a stranger being appended — that history is yours, you
+ * have simply acquired an account since making it. Adoption re-keys the
+ * reader to the auth user id and rewrites every tick that pointed at the old
+ * local id, because an id nobody holds any more is a tick nobody made.
+ *
+ * A name or photo already chosen here wins over whatever the provider knows:
+ * you picked those, the provider guessed.
  */
 export function linkAccount(state, { userId, email, name, avatarUrl }) {
   if (!userId) return state
 
-  const existing = state.readers.find((r) => r.userId === userId)
-  const target = existing ?? state.readers.find((r) => !r.userId)
+  const already = state.readers.find((r) => r.userId === userId)
+  const target = already ?? state.readers.find((r) => !r.userId)
 
   const fill = (r) => ({
     ...r,
+    id: userId,
     userId,
-    email: email ?? r.email,
+    email: email ?? r.email ?? null,
     name: r.name?.trim() ? r.name : (name ?? ''),
-    avatarUrl: avatarUrl ?? r.avatarUrl,
+    avatarUrl: r.avatarUrl ?? avatarUrl ?? null,
   })
 
-  if (target) return { ...state, readers: state.readers.map((r) => (r.id === target.id ? fill(r) : r)) }
-  if (state.readers.length >= MAX_READERS) return state
-  return { ...state, readers: [...state.readers, fill(makeReader({ userId, email, name, avatarUrl }))] }
+  if (!target) {
+    if (state.readers.length >= MAX_READERS) return state
+    return { ...state, readers: [...state.readers, makeReader({ userId, email, name, avatarUrl })] }
+  }
+
+  const filled = fill(target)
+  const same =
+    filled.id === target.id &&
+    filled.userId === target.userId &&
+    filled.email === target.email &&
+    filled.name === target.name &&
+    filled.avatarUrl === target.avatarUrl
+  if (same) return state
+
+  const from = target.id
+  return {
+    ...state,
+    readers: state.readers.map((r) => (r.id === from ? filled : r)),
+    completed:
+      from === userId
+        ? state.completed
+        : state.completed.map((row) =>
+            row.readBy.includes(from)
+              ? { ...row, readBy: [...new Set(row.readBy.map((x) => (x === from ? userId : x)))] }
+              : row,
+          ),
+  }
 }
 
 export const freshState = emptyState

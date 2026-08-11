@@ -1,15 +1,20 @@
 /**
  * The way in.
  *
- * This is a door, not a gate. Signing in is what makes a history shared
- * between phones — it is not what makes the app work, so "read on this device"
- * is a real choice offered as plainly as the sign-in itself, not a grey
- * link underneath it. Someone who never wants an account should be able to
- * start reading in one tap and never see this screen again.
+ * It opens on "create an account", not "sign in", because that is what is
+ * overwhelmingly true of a device that has never been used before: whoever is
+ * holding it does not have one yet. Making the common case the default costs
+ * the returning reader one tap and saves the new one a wrong turn into a form
+ * that will only tell them their credentials do not match.
  *
- * It appears once, on a device that has never been used and never dismissed
- * it. After that the app opens on the wheel, and everything here is still
- * reachable from Settings → Sharing.
+ * An account is also what makes somebody a reader the rest of the group can
+ * see, which is the honest reason to want one — so the copy below says that
+ * rather than talking about syncing.
+ *
+ * Still a door and not a gate. "Read on this device" is a real choice offered
+ * as plainly as the account itself, not a grey link underneath it, and it
+ * appears once: after that the app opens on the wheel and everything here
+ * stays reachable from Settings → Sharing.
  */
 import { Brandmark, Button, Icon, ICONS } from './ui.jsx'
 import AuthForm from './AuthForm.jsx'
@@ -27,7 +32,7 @@ export default function AuthPage({ sync, onSkip }) {
       </header>
 
       <div className="reveal reveal-delay-1">
-        <AuthForm sync={sync} size="lg" />
+        <AuthForm sync={sync} size="lg" initialMode="signup" />
       </div>
 
       <div className="reveal reveal-delay-2 flex items-center gap-3">
@@ -41,8 +46,9 @@ export default function AuthPage({ sync, onSkip }) {
           Read on this device
         </Button>
         <p className="px-2 text-center text-xs leading-relaxed text-ink-2">
-          Everything works without an account — the wheel, the archive, your notes. Signing in only adds
-          one thing: the same history on more than one phone. You can do it later from Settings.
+          Everything works without an account — the wheel, the archive, your notes. An account adds two
+          things: your history on more than one phone, and a place in a group where each reader is
+          somebody who signed up for themselves. You can do it later from Settings.
         </p>
       </div>
 
@@ -50,7 +56,7 @@ export default function AuthPage({ sync, onSkip }) {
         {[
           'One passage a day, chosen by the wheel',
           'No passage twice until all 286 are read',
-          '286 texts most reading plans skip',
+          'Read alongside anyone who has the group code',
         ].map((line) => (
           <li key={line} className="flex items-start gap-2.5">
             <Icon path={ICONS.check} size={16} className="mt-0.5 shrink-0 text-accent" />

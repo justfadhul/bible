@@ -7,19 +7,39 @@
  *  else in src/ learning that localStorage exists.
  * ─────────────────────────────────────────────────────────────────────────
  *
- * Persisted shape (schema version 2):
+ * Persisted shape (schema version 3):
  *
  *   {
- *     version: 2,
+ *     version: 3,
  *     readers: [{ id, name, avatarUrl, userId, email }],
  *     completed: [{ id, dateISO, notes, readBy: [readerId, …] }],
  *     lastSpinDate: "YYYY-MM-DD" | null
  *   }
  *
+ * ── A reader is an account ────────────────────────────────────────────────
+ *
+ * v3's rule: readers are not made, they arrive. Every reader is somebody's
+ * signed-in account, and `reader.id` IS their auth user id. Nobody types a
+ * second person into existence on their own phone; the second person signs up
+ * on their own phone and joins the group, and that is what puts them in the
+ * list.
+ *
+ * The one exception is you, before you have an account. A device that has
+ * chosen "read on this device" still needs somebody to tick, so it carries
+ * exactly one reader with no userId. When that person signs up, their reader
+ * is re-keyed to the new user id — and every tick they had made is re-keyed
+ * with it, so nothing is stranded under an id that no longer exists.
+ *
+ * Making the id the user id (rather than a local id with a userId beside it)
+ * is what makes ticks portable. `readBy: ["<uuid>"]` means the same person on
+ * every device that will ever sync, with nothing to reconcile.
+ *
+ * ── History ───────────────────────────────────────────────────────────────
+ *
  * v1 stored exactly two readers as `readerNames: {a, b}` and a per-reading
- * `readBy: {a: bool, b: bool}`. v2 generalises that to a list, because the
- * app now supports more than two people. migrateV1() converts old data and
- * old exports in place, so nobody loses a history to the change.
+ * `readBy: {a: bool, b: bool}`. v2 generalised that to a list of arbitrary
+ * locally-made readers. v3 is the shape above. migrateV1 and migrateV2 run in
+ * sequence, so an old export travels the whole way rather than being rejected.
  *
  * Every read is guarded: a corrupt, truncated or foreign value falls back to
  * empty state rather than crashing, and unknown fields are dropped rather
@@ -28,11 +48,12 @@
 import { isISODate } from './date.js'
 
 export const STORAGE_KEY = 'spin-catalog:v1' // the key name is historical; contents are versioned
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 
+/** The cap join_pair() enforces server-side; mirrored here so the UI can say so. */
 export const MAX_READERS = 8
 
-/** Ids for locally-created readers. Short, stable, and never reused. */
+/** The id for the one reader a device can have before anyone signs in. */
 export const newReaderId = () => {
   try {
     if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID().slice(0, 8)
@@ -40,14 +61,28 @@ export const newReaderId = () => {
   return Math.random().toString(36).slice(2, 10)
 }
 
+/** An account-backed reader is keyed by its user id; a local one gets a fresh id. */
 export function makeReader(over = {}) {
-  return { id: newReaderId(), name: '', avatarUrl: null, userId: null, email: null, ...over }
+  const { id, userId = null, ...rest } = over
+  return {
+    id: id ?? userId ?? newReaderId(),
+    name: '',
+    avatarUrl: null,
+    email: null,
+    ...rest,
+    userId,
+  }
 }
 
+/**
+ * One reader, unnamed — you, on this device, before any of this is an account.
+ * Not two: a second person is not a checkbox somebody adds, they are somebody
+ * who signs up.
+ */
 export function emptyState() {
   return {
     version: SCHEMA_VERSION,
-    readers: [makeReader({ id: 'a', name: 'Reader A' }), makeReader({ id: 'b', name: 'Reader B' })],
+    readers: [makeReader()],
     completed: [],
     lastSpinDate: null,
   }
@@ -81,7 +116,62 @@ export function migrateV1(input) {
     if (row?.readBy?.b === true) readBy.push('b')
     return { ...row, readBy }
   })
-  return { version: SCHEMA_VERSION, readers, completed, lastSpinDate: input?.lastSpinDate ?? null }
+  return { version: 2, readers, completed, lastSpinDate: input?.lastSpinDate ?? null }
+}
+
+/**
+ * v2 → v3. Two jobs, and the second one is the delicate one.
+ *
+ * First: re-key every account-backed reader to its user id, rewriting the
+ * ticks that pointed at the old local id so nothing is orphaned.
+ *
+ * Second: clear out the placeholders. v2 handed every new device two readers
+ * called "Reader A" and "Reader B" whether or not two people existed, and the
+ * new model has no room for a reader nobody signed up as. But a reader that
+ * was actually used is somebody's real history, so the rule is narrow: an
+ * unlinked reader is dropped only if it was never named, never given a photo
+ * and never ticked anything — an untouched placeholder and nothing else.
+ * Anything anyone bothered with survives and can be dismissed by hand once its
+ * owner has an account. There is always at least one reader left, because a
+ * device with nobody on it cannot record having read.
+ */
+export function migrateV2(input) {
+  const remap = new Map()
+  const readers = []
+
+  for (const r of Array.isArray(input?.readers) ? input.readers : []) {
+    if (!r || typeof r !== 'object') continue
+    const userId = asString(r.userId).slice(0, 64) || null
+    const oldId = asString(r.id)
+    const id = userId || oldId || newReaderId()
+    if (oldId && oldId !== id) remap.set(oldId, id)
+    readers.push({ ...r, id, userId })
+  }
+
+  const completed = (Array.isArray(input?.completed) ? input.completed : []).map((row) => ({
+    ...row,
+    readBy: [...new Set((Array.isArray(row?.readBy) ? row.readBy : []).map((x) => remap.get(x) ?? x))],
+  }))
+
+  const used = new Set(completed.flatMap((row) => row.readBy))
+  const kept = readers.filter(
+    (r) => r.userId || used.has(r.id) || clean(r.name) || cleanAvatar(r.avatarUrl),
+  )
+  const survivors = (kept.length ? kept : readers.slice(0, 1)).map((r, i) =>
+    // Exactly one reader may be nameless and account-less, and it means "you
+    // on this device". A leftover kept for its ticks alone would be
+    // indistinguishable from that, so it is given back its position's name.
+    !r.userId && !clean(r.name) && i > 0
+      ? { ...r, name: `Reader ${String.fromCharCode(65 + i)}` }
+      : r,
+  )
+
+  return {
+    version: SCHEMA_VERSION,
+    readers: survivors.length ? survivors : [makeReader()],
+    completed,
+    lastSpinDate: input?.lastSpinDate ?? null,
+  }
 }
 
 /**
@@ -97,11 +187,21 @@ export function normalizeState(input) {
     return { state: emptyState(), problems: ['not an object'] }
   }
 
+  // The migrations run in sequence, so a version 1 export travels the whole
+  // way rather than being rejected for being two steps behind.
   let src = input
-  if (input.version === 1 || (!input.readers && input.readerNames)) {
-    src = migrateV1(input)
-    problems.push('upgraded a version 1 history to version 2')
-  } else if (input.version !== SCHEMA_VERSION) {
+  if (src.version === 1 || (!src.readers && src.readerNames)) {
+    src = migrateV1(src)
+    problems.push('upgraded a version 1 history')
+  }
+  if (src.version === 2 || (src.version !== SCHEMA_VERSION && Array.isArray(src.readers))) {
+    if (src.version !== 2) {
+      problems.push(`unknown schema version ${JSON.stringify(input.version)} — reading it as v${SCHEMA_VERSION}`)
+    } else {
+      problems.push('upgraded a version 2 history — readers are accounts now')
+    }
+    src = migrateV2(src)
+  } else if (src.version !== SCHEMA_VERSION) {
     problems.push(`unknown schema version ${JSON.stringify(input.version)} — reading it as v${SCHEMA_VERSION}`)
   }
 
@@ -124,10 +224,12 @@ export function normalizeState(input) {
     })
   }
   if (!readers.length) {
-    problems.push('no usable readers — restoring the default two')
-    readers.push(makeReader({ id: 'a', name: 'Reader A' }), makeReader({ id: 'b', name: 'Reader B' }))
-    readerIds.add('a')
-    readerIds.add('b')
+    // Somebody has to be able to tick. One, not two — the second reader is a
+    // person who signs up, not a row this file invents.
+    problems.push('no usable readers — restoring a single local one')
+    const me = makeReader()
+    readers.push(me)
+    readerIds.add(me.id)
   }
 
   // ── completed ──
@@ -187,7 +289,14 @@ export function getState() {
     const raw = store.getItem(STORAGE_KEY)
     if (!raw) return emptyState()
     const { state, problems } = normalizeState(JSON.parse(raw))
-    if (problems.length) console.warn('[spin-catalog] recovered stored state with problems:', problems)
+    if (problems.length) {
+      console.warn('[spin-catalog] recovered stored state with problems:', problems)
+      // Write the repaired copy straight back. Otherwise a migration is redone
+      // on every single load, and what is on disk never matches what the app
+      // believes — which is exactly the sort of disagreement that only shows
+      // up later, in an export, as a version nobody expected.
+      saveState(state)
+    }
     return state
   } catch (err) {
     console.warn('[spin-catalog] could not read stored state, starting empty:', err)

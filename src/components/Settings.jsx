@@ -87,7 +87,7 @@ function Haptics({ hx }) {
   )
 }
 
-export default function Settings({ state, sync, theme, onTheme, onImport, onReset, onUpdateReader, onAddReader, onRemoveReader, haptics: hx }) {
+export default function Settings({ state, sync, theme, onTheme, onImport, onReset, onUpdateReader, onRemoveReader, haptics: hx }) {
   const fileRef = useRef(null)
   const [status, setStatus] = useState(null)
   const [pendingReset, setPendingReset] = useState(false)
@@ -167,13 +167,7 @@ export default function Settings({ state, sync, theme, onTheme, onImport, onRese
 
       <Haptics hx={hx} />
 
-      <Readers
-        state={state}
-        sync={sync}
-        onUpdate={onUpdateReader}
-        onAdd={onAddReader}
-        onRemove={onRemoveReader}
-      />
+      <Readers state={state} sync={sync} onUpdate={onUpdateReader} onRemove={onRemoveReader} />
 
       <Group
         header="Backup"

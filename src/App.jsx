@@ -26,7 +26,6 @@ import {
   rowForDate,
   setNotes,
   setReadBy,
-  addReader,
   removeReader,
   updateReader,
   linkAccount,
@@ -215,7 +214,8 @@ export default function App() {
     />
   ) : null
 
-  // Signing in should fill in who you are, not leave you as "Reader A".
+  // An account IS a reader: signing in claims this device's reader, fills in
+  // the name from the address, and re-keys every tick to the account id.
   useEffect(() => {
     const user = sync.session?.user
     if (!user?.id) return
@@ -388,7 +388,6 @@ export default function App() {
               setUndo(null)
             }}
             onUpdateReader={(id, patch) => commit(updateReader(state, id, patch))}
-            onAddReader={() => commit(addReader(state))}
             onRemoveReader={(id) => commit(removeReader(state, id))}
             haptics={hapticsPrefs}
           />

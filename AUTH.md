@@ -1,7 +1,13 @@
 # Accounts — how sign-in works, and the one setting to change
 
-Manna signs people in with an **email and a password**. Two things still travel by email, and both
-of them are a **six-digit code**, never a link:
+Manna signs people in with an **email and a password**.
+
+**An account is what makes somebody a reader.** There is no way to add a reader by hand: each
+person creates their own account on their own phone and enters the group's invite code, and that is
+what puts them in the roster. So the sign-up form is the front door — a device nobody has used
+opens on *Create account*, not *Sign in*.
+
+Two things still travel by email, and both of them are a **six-digit code**, never a link:
 
 | When | Why a code |
 |---|---|

@@ -2,9 +2,10 @@
 --  The Spin Catalog — shared reading history
 --
 --  One shared history for a small group — two people, or up to eight. Each
---  signs in with a magic link; one creates the group and shares its invite
---  code, the others join with it. From then on every device reads and writes
---  the same rows.
+--  person creates their own account with an email and a password; one creates
+--  the group and shares its invite code, the others join with it. From then on
+--  every device reads and writes the same rows, and every reader in the roster
+--  is an account that signed itself up.
 --
 --  Run this once in the Supabase SQL editor (Dashboard → SQL Editor → New
 --  query → paste → Run). It is idempotent, so re-running is harmless.
@@ -36,8 +37,11 @@ create table if not exists public.pairs (
   invite_code     text not null unique,
   last_spin_date  date,
   -- The reader roster, in the same shape the client holds it:
-  -- [{ id, name, avatarUrl, userId, email }]. The access pattern is always
-  -- "read this pair's whole state", so a document beats three joins here.
+  -- [{ id, name, avatarUrl, userId, email }], where `id` is the auth user id.
+  -- A reader is an account: rows appear here because somebody signed up and
+  -- joined, never because somebody typed a name on their own phone. The access
+  -- pattern is always "read this pair's whole state", so a document beats
+  -- three joins.
   readers         jsonb not null default '[]'::jsonb,
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now()
@@ -59,7 +63,8 @@ create table if not exists public.readings (
   entry_id   integer not null check (entry_id > 0),
   date_iso   date,
   notes      text not null default '',
-  -- Reader ids, matching pairs.readers[].id.
+  -- Reader ids, matching pairs.readers[].id — which are auth user ids, so a
+  -- tick means the same person on every device that syncs.
   read_by    text[] not null default '{}',
   updated_at timestamptz not null default now(),
   primary key (pair_id, entry_id)

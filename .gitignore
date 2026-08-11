@@ -31,3 +31,4 @@ dist/
 .prog.mjs
 .dbg2.mjs
 .load.mjs
+.readers.mjs
