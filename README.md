@@ -105,7 +105,7 @@ the same guard as stored data. A corrupt value yields empty state, never a crash
 
 Settings has **Export JSON**, **Import JSON**, and a **Reset** that requires typing `RESET`.
 
-### Schema version 3 — a reader is an account
+### Schema version 4 — a reader is an account, with a note of their own
 
 ```js
 readers:  [{ id, name, avatarUrl, userId, email }]   // id IS the auth user id
@@ -132,13 +132,43 @@ history made before signing up is still theirs afterwards. Because at most one r
 account, an unnamed one is unambiguously the device's owner, and shows as "You" rather than
 "Reader A".
 
-**Migration.** `normalizeState()` runs v1 → v2 → v3 in sequence, so a two-versions-old export
-travels the whole way rather than being rejected. v2 → v3 re-keys account-backed readers and
+**Migration.** `normalizeState()` runs v1 → v2 → v3 → v4 in sequence, so a three-versions-old
+export travels the whole way rather than being rejected. v2 → v3 re-keys account-backed readers and
 rewrites the ticks that pointed at their old ids, then drops the placeholders v2 created on every
 device — but only ones that were never named, never given a photo and never ticked anything. A
 reader anyone actually used survives and can be dismissed by hand. No reading is ever dropped, and
 a device is never left with nobody on it. `getState()` writes the upgraded copy straight back, so
-it happens once rather than on every load. 15 tests cover that path alone.
+it happens once rather than on every load.
+
+`Reader A` … `Reader H` are treated as **blank**, not as names. They are what v2 generated on every
+device, and taking them for chosen names is what left people staring at a "Reader B" who had never
+signed up for anything.
+
+**The roster is a query, not a document.** `pair_readers()` joins `pair_members` — which is the
+truth about who is in the group — to a `profiles` table holding the part each person owns about
+themselves. Two things were wrong with the jsonb document it replaces: somebody who joined but had
+not opened the app was invisible to everyone, because nothing had written their row; and anybody in
+the group could rename anybody else, because it was all one blob that every client rewrote
+wholesale. The RLS on `profiles` makes "your own name" literal.
+
+Because the roster is the database's answer rather than two devices' opinions, the merge **takes**
+it rather than unioning. Unioning could never let somebody leave: one stale copy would keep voting
+them back in forever. The only thing carried over from the local side is a reader with no account —
+this device's own pre-signup reader, whom the server has never heard of.
+
+**One note each.** `notesBy: { [readerId]: text }`. A single shared box meant the second person to
+type about a passage silently overwrote the first, and the useful thing to see afterwards is what
+the *other* person made of it — which one merged blob of text cannot tell you. Notes merge per
+author, since each key belongs to one person and only they ever write it; where both sides hold the
+same author's note the newer wins, and with no timestamp the longer does. They are never
+concatenated: that turns two drafts of a thought into one unreadable one.
+
+The old shared `notes` string is left exactly where it is and shown unattributed where it has
+content. Nobody knows who wrote it — that is the problem v4 fixes — so guessing would be writing a
+guess into somebody's history.
+
+A note by a reader who has left is **kept**, unlike their ticks. Dropping a tick loses a claim
+about who read something; dropping a note loses the thing itself.
 
 Names are free text with a row of borrowable ones a tap away; you edit your own and nobody else's.
 Photos are cropped square and downscaled to 256px before they go anywhere; signed in, your own
@@ -158,9 +188,12 @@ The anon key is designed to ship in the client and is protected by row level
 security. The service-role key bypasses RLS entirely and must never appear in
 `.env`, in the bundle, or in this repo.
 
-**Run the migration once**: open Supabase → SQL Editor → New query, paste
-`supabase/migrations/0001_shared_history.sql`, Run. It is idempotent, so re-running after a change
-to the file is safe and only replaces what moved.
+**Run the migrations once**, in order: open Supabase → SQL Editor → New query, paste
+`supabase/migrations/0001_shared_history.sql`, Run; then the same for
+`0002_real_readers.sql`. Both are idempotent, so re-running after a change to either file is safe
+and only replaces what moved. 0002 is what makes the roster come from the database and gives each
+reader their own note — without it the app still runs, and Settings → Sharing says which one is
+missing.
 
 Then, in Settings → Sharing: **each of you creates your own account** with an
 email and a password, one of you starts a shared history and reads out the

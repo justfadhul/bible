@@ -7,12 +7,17 @@
  *  else in src/ learning that localStorage exists.
  * ─────────────────────────────────────────────────────────────────────────
  *
- * Persisted shape (schema version 3):
+ * Persisted shape (schema version 4):
  *
  *   {
- *     version: 3,
+ *     version: 4,
  *     readers: [{ id, name, avatarUrl, userId, email }],
- *     completed: [{ id, dateISO, notes, readBy: [readerId, …] }],
+ *     completed: [{
+ *       id, dateISO,
+ *       notes,                        // the old shared note, read-only now
+ *       notesBy: { [readerId]: text } // one note each
+ *       readBy: [readerId, …],
+ *     }],
  *     lastSpinDate: "YYYY-MM-DD" | null
  *   }
  *
@@ -38,8 +43,11 @@
  *
  * v1 stored exactly two readers as `readerNames: {a, b}` and a per-reading
  * `readBy: {a: bool, b: bool}`. v2 generalised that to a list of arbitrary
- * locally-made readers. v3 is the shape above. migrateV1 and migrateV2 run in
- * sequence, so an old export travels the whole way rather than being rejected.
+ * locally-made readers. v3 made a reader an account. v4 gives each of them
+ * their own note, because one shared box meant two people writing about the
+ * same passage silently overwrote each other. The migrations run in sequence,
+ * so a three-versions-old export travels the whole way rather than being
+ * rejected.
  *
  * Every read is guarded: a corrupt, truncated or foreign value falls back to
  * empty state rather than crashing, and unknown fields are dropped rather
@@ -48,7 +56,7 @@
 import { isISODate } from './date.js'
 
 export const STORAGE_KEY = 'spin-catalog:v1' // the key name is historical; contents are versioned
-export const SCHEMA_VERSION = 3
+export const SCHEMA_VERSION = 4
 
 /** The cap join_pair() enforces server-side; mirrored here so the UI can say so. */
 export const MAX_READERS = 8
@@ -90,6 +98,21 @@ export function emptyState() {
 
 const asString = (v, fallback = '') => (typeof v === 'string' ? v : fallback)
 const clean = (v, max = 60) => asString(v).replace(/\s+/g, ' ').trim().slice(0, max)
+
+/**
+ * A name somebody actually chose, as opposed to one v2 generated for them.
+ *
+ * v2 stamped every new device with readers literally called "Reader A" and
+ * "Reader B". Those look like names to a string check, which is why the first
+ * pass at the v3 migration kept them and people were left staring at a
+ * "Reader B" who does not exist and never signed up. They are placeholders,
+ * and they are treated as blank.
+ */
+const PLACEHOLDER_NAME = /^reader\s+[a-h]$/i
+const chosenName = (v) => {
+  const name = clean(v)
+  return PLACEHOLDER_NAME.test(name) ? '' : name
+}
 
 /**
  * Avatars are either a remote URL or an inline data: URI (a locally chosen
@@ -155,22 +178,43 @@ export function migrateV2(input) {
 
   const used = new Set(completed.flatMap((row) => row.readBy))
   const kept = readers.filter(
-    (r) => r.userId || used.has(r.id) || clean(r.name) || cleanAvatar(r.avatarUrl),
+    (r) => r.userId || used.has(r.id) || chosenName(r.name) || cleanAvatar(r.avatarUrl),
   )
-  const survivors = (kept.length ? kept : readers.slice(0, 1)).map((r, i) =>
+  const survivors = (kept.length ? kept : readers.slice(0, 1)).map((r, i) => {
+    if (r.userId) return r
+    // A generated name is not a name; drop it so the field reads as empty and
+    // the first person to sign in here can claim the row cleanly.
+    const name = chosenName(r.name)
     // Exactly one reader may be nameless and account-less, and it means "you
-    // on this device". A leftover kept for its ticks alone would be
-    // indistinguishable from that, so it is given back its position's name.
-    !r.userId && !clean(r.name) && i > 0
-      ? { ...r, name: `Reader ${String.fromCharCode(65 + i)}` }
-      : r,
-  )
+    // on this device". A leftover kept only for its ticks would be
+    // indistinguishable from that, so it is labelled for what it is.
+    return { ...r, name: name || (i === 0 ? '' : 'Reader from before') }
+  })
 
   return {
-    version: SCHEMA_VERSION,
+    version: 3,
     readers: survivors.length ? survivors : [makeReader()],
     completed,
     lastSpinDate: input?.lastSpinDate ?? null,
+  }
+}
+
+/**
+ * v3 → v4. Purely additive: every reading grows an empty per-reader note map.
+ *
+ * The old shared `notes` string is left exactly where it is. Nobody knows who
+ * wrote it — that is the whole problem v4 fixes — so attributing it to
+ * somebody would be a guess written into their history. It stays unattributed,
+ * shown where it has content, and no new one is ever created.
+ */
+export function migrateV3(input) {
+  return {
+    ...input,
+    version: SCHEMA_VERSION,
+    completed: (Array.isArray(input?.completed) ? input.completed : []).map((row) => ({
+      ...row,
+      notesBy: {},
+    })),
   }
 }
 
@@ -194,13 +238,17 @@ export function normalizeState(input) {
     src = migrateV1(src)
     problems.push('upgraded a version 1 history')
   }
-  if (src.version === 2 || (src.version !== SCHEMA_VERSION && Array.isArray(src.readers))) {
+  if (src.version === 2 || (src.version < SCHEMA_VERSION && Array.isArray(src.readers) && src.version !== 3)) {
     if (src.version !== 2) {
       problems.push(`unknown schema version ${JSON.stringify(input.version)} — reading it as v${SCHEMA_VERSION}`)
     } else {
       problems.push('upgraded a version 2 history — readers are accounts now')
     }
     src = migrateV2(src)
+  }
+  if (src.version === 3) {
+    src = migrateV3(src)
+    problems.push('upgraded a version 3 history — each reader has their own note now')
   } else if (src.version !== SCHEMA_VERSION) {
     problems.push(`unknown schema version ${JSON.stringify(input.version)} — reading it as v${SCHEMA_VERSION}`)
   }
@@ -247,10 +295,21 @@ export function normalizeState(input) {
 
     // A tick by a reader who no longer exists is dropped, not kept as a ghost.
     const readBy = [...new Set((Array.isArray(row.readBy) ? row.readBy : []).filter((x) => readerIds.has(x)))]
+    // A note, on the other hand, is words somebody wrote. It is kept even when
+    // its author has left the roster — dropping a tick loses a claim about who
+    // read something, dropping a note loses the thing itself.
+    const notesBy = {}
+    if (row.notesBy && typeof row.notesBy === 'object' && !Array.isArray(row.notesBy)) {
+      for (const [who, text] of Object.entries(row.notesBy)) {
+        const body = asString(text).slice(0, 4000)
+        if (who && body) notesBy[String(who).slice(0, 64)] = body
+      }
+    }
     completed.push({
       id,
       dateISO: isISODate(row.dateISO) ? row.dateISO : null,
       notes: asString(row.notes),
+      notesBy,
       readBy,
     })
   }

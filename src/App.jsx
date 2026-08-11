@@ -24,7 +24,8 @@ import {
   recordSpin,
   rowFor,
   rowForDate,
-  setNotes,
+  setMyNote,
+  setRoster,
   setReadBy,
   removeReader,
   updateReader,
@@ -144,6 +145,15 @@ export default function App() {
     if (undo && now >= undo.expiresAt) setUndo(null)
   }, [undo, now])
 
+  // Which reader is this device's owner: their account if they have one, and
+  // otherwise the single account-less reader the app keeps for exactly this.
+  const myUserId = sync.session?.user?.id ?? null
+  const myReaderId =
+    (myUserId && state.readers.find((r) => r.userId === myUserId)?.id) ??
+    state.readers.find((r) => !r.userId)?.id ??
+    state.readers[0]?.id ??
+    null
+
   const completedIds = useMemo(() => idsOf(state), [state])
   const exhausted = isExhausted(state, TOTAL)
   const spunToday = state.lastSpinDate === today && !dev
@@ -205,7 +215,8 @@ export default function App() {
       row={todayRow}
       dateISO={todayRow.dateISO}
       readers={state.readers}
-      onNotes={(notes) => commit(setNotes(state, todayEntry.id, notes))}
+      meId={myReaderId}
+      onNotes={(notes) => commit(setMyNote(state, todayEntry.id, myReaderId, notes))}
       onReadBy={(readerId, value) => commit(setReadBy(state, todayEntry.id, readerId, value))}
       undo={undoInfo}
       onUndo={doUndo}
@@ -228,6 +239,25 @@ export default function App() {
     if (next !== state) commit(next)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sync.session?.user?.id])
+
+  /**
+   * Your name and photo belong to your account, not to this device, so they
+   * are published to the profiles table where the others can read them.
+   * Debounced because the name field publishes on every keystroke otherwise,
+   * and the local copy is already saved — this is only the sharing half.
+   */
+  const profileTimer = useRef(null)
+  useEffect(() => () => clearTimeout(profileTimer.current), [])
+  const publishProfile = useCallback(
+    (reader) => {
+      if (!reader?.userId || reader.userId !== syncRef.current?.session?.user?.id) return
+      clearTimeout(profileTimer.current)
+      profileTimer.current = setTimeout(() => {
+        syncRef.current?.saveProfile?.({ name: reader.name, avatarUrl: reader.avatarUrl })
+      }, 700)
+    },
+    [],
+  )
 
   const [hapticsOn, setHapticsOn] = useState(haptics.hapticsEnabled)
   const hapticsPrefs = {
@@ -387,7 +417,11 @@ export default function App() {
               setJustSpunId(null)
               setUndo(null)
             }}
-            onUpdateReader={(id, patch) => commit(updateReader(state, id, patch))}
+            onUpdateReader={(id, patch) => {
+              const next = updateReader(state, id, patch)
+              commit(next)
+              publishProfile(next.readers.find((r) => r.id === id))
+            }}
             onRemoveReader={(id) => commit(removeReader(state, id))}
             haptics={hapticsPrefs}
           />

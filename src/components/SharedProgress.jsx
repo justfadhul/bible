@@ -98,16 +98,27 @@ function CategoryBlock({ category, readers, onReadBy, colWidth }) {
             </td>
             {readers.map((r, i) => {
               const on = t.readBy.includes(r.id)
+              const wrote = Boolean(t.notesBy?.[r.id]?.trim())
               return (
                 <td key={r.id} className="px-1 py-1 text-center">
                   <button
                     type="button"
                     role="checkbox"
                     aria-checked={on}
-                    aria-label={`${displayName(r, i)} has read ${t.topic}`}
+                    aria-label={`${displayName(r, i)} has read ${t.topic}${wrote ? ', and wrote a note' : ''}`}
                     onClick={() => onReadBy?.(t.id, r.id, !on)}
-                    className="mx-auto grid size-11 place-items-center rounded-r3"
+                    className="relative mx-auto grid size-11 place-items-center rounded-r3"
                   >
+                    {/* A note is a different fact from a tick, and worth
+                        seeing at a glance: it says the other person had
+                        something to say about this one. */}
+                    {wrote && (
+                      <span
+                        aria-hidden="true"
+                        className="absolute top-1.5 right-1.5 size-1.5 rounded-full"
+                        style={{ background: category.color }}
+                      />
+                    )}
                     <span
                       aria-hidden="true"
                       className="grid size-6 place-items-center rounded-r2"

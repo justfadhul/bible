@@ -6,7 +6,8 @@
  * colour, and whatever was written about it.
  */
 import { useMemo, useState } from 'react'
-import { AvatarStack, Card, EmptyState, Field, Icon, ICONS, Inset, Segmented, Skeleton } from './ui.jsx'
+import { Avatar, AvatarStack, Card, EmptyState, Field, Icon, ICONS, Inset, Segmented, Skeleton } from './ui.jsx'
+import { displayName } from '../lib/readers.js'
 import SharedProgress from './SharedProgress.jsx'
 import { CATEGORIES, TOTAL, getEntry, getCategory } from '../lib/catalog.js'
 import { formatShortDate } from '../lib/date.js'
@@ -71,6 +72,10 @@ function Row({ row, readers, ground, last }) {
   if (!entry) return null
   const category = getCategory(entry.category)
   const readBy = readers.filter((r) => row.readBy?.includes(r.id))
+  const notes = readers
+    .map((r, index) => ({ reader: r, index, text: row.notesBy?.[r.id] ?? '' }))
+    .filter((n) => n.text.trim())
+  const anyNote = notes.length > 0 || Boolean(row.notes?.trim())
 
   return (
     <li>
@@ -95,7 +100,7 @@ function Row({ row, readers, ground, last }) {
             {category?.name}
           </span>
           <span className="text-ink-2">· {entry.size}</span>
-          {row.notes?.trim() && <span className="text-ink-2">· notes</span>}
+          {anyNote && <span className="text-ink-2">· notes</span>}
           {readBy.length > 0 && (
             <span className="ml-auto inline-flex items-center gap-1.5">
               <AvatarStack readers={readBy} size={20} />
@@ -108,11 +113,22 @@ function Row({ row, readers, ground, last }) {
         <div className="space-y-2.5 px-4 pb-4">
           <p className="font-serif text-sm leading-relaxed text-ink-2">{entry.hook}</p>
           <p className="font-serif text-sm leading-relaxed">{entry.question}</p>
-          {row.notes?.trim() ? (
-            <Inset className="p-3 text-sm leading-relaxed whitespace-pre-wrap text-ink-2">{row.notes}</Inset>
-          ) : (
-            <p className="text-2xs text-ink-2">No notes were written for this one.</p>
+          {notes.map(({ reader, index, text }) => (
+            <div key={reader.id}>
+              <div className="mb-1.5 flex items-center gap-2">
+                <Avatar reader={reader} index={index} size={20} />
+                <p className="eyebrow">{displayName(reader, index)}</p>
+              </div>
+              <Inset className="p-3 text-sm leading-relaxed whitespace-pre-wrap text-ink-2">{text}</Inset>
+            </div>
+          ))}
+          {row.notes?.trim() && (
+            <div>
+              <p className="eyebrow mb-1.5">Note from before</p>
+              <Inset className="p-3 text-sm leading-relaxed whitespace-pre-wrap text-ink-2">{row.notes}</Inset>
+            </div>
           )}
+          {!anyNote && <p className="text-2xs text-ink-2">No notes were written for this one.</p>}
         </div>
       )}
 

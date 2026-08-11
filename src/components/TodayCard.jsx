@@ -5,7 +5,7 @@
  * only way back is the 60-second undo, which App owns.
  */
 import { useEffect, useRef, useState } from 'react'
-import { Avatar, Badge, Button, Card, Field, Icon, ICONS } from './ui.jsx'
+import { Avatar, Badge, Button, Card, Field, Icon, ICONS, Inset } from './ui.jsx'
 import { displayName } from '../lib/readers.js'
 import * as haptics from '../lib/haptics.js'
 import { getCategory } from '../lib/catalog.js'
@@ -28,6 +28,7 @@ export default function TodayCard({
   row,
   dateISO,
   readers,
+  meId,
   onNotes,
   onReadBy,
   undo,
@@ -37,7 +38,16 @@ export default function TodayCard({
 }) {
   const category = getCategory(entry.category)
   const readCount = row?.readBy?.length ?? 0
-  const [draft, setDraft] = useState(row?.notes ?? '')
+
+  // Everyone except you, split by whether they have written anything.
+  const others = readers.map((r, index) => ({ reader: r, index })).filter(({ reader }) => reader.id !== meId)
+  const theirNotes = others
+    .map((o) => ({ ...o, text: row?.notesBy?.[o.reader.id] ?? '' }))
+    .filter((o) => o.text.trim())
+  const waitingOn = others
+    .filter(({ reader }) => !row?.notesBy?.[reader.id]?.trim())
+    .map(({ reader, index }) => displayName(reader, index))
+  const [draft, setDraft] = useState(row?.notesBy?.[meId] ?? '')
   const [copied, setCopied] = useState(false)
   // 'Saved as you type' is a promise; this is the evidence. Without it there
   // is no moment where the note visibly stops being unsaved, which is exactly
@@ -48,8 +58,8 @@ export default function TodayCard({
   const headingRef = useRef(null)
 
   useEffect(() => {
-    setDraft(row?.notes ?? '')
-  }, [entry.id, row?.notes])
+    setDraft(row?.notesBy?.[meId] ?? '')
+  }, [entry.id, meId, row?.notesBy?.[meId]])
 
   useEffect(
     () => () => {
@@ -199,19 +209,52 @@ export default function TodayCard({
         </p>
       </Card>
 
-      <Card className="px-4 py-4">
+      <Card className={`px-4 py-4 ${r} reveal-delay-3`}>
         <Field
           as="textarea"
           id="notes"
-          label="Notes"
+          label="Your note"
           hint={
             saved === 'pending' ? 'Saving…' : saved === 'done' ? 'Saved.' : 'Saved as you type.'
           }
           value={draft}
           onChange={(e) => onDraft(e.target.value)}
-          placeholder="What came up when you talked about it…"
+          placeholder="What came up when you read it…"
           rows={4}
         />
+
+        {/* What the others made of the same passage. Read-only and attributed:
+            the point of a shared history is seeing the other person's take, and
+            a single box everyone typed into could only ever show one of them. */}
+        {theirNotes.map(({ reader, index, text }) => (
+          <div key={reader.id} className="mt-4">
+            <div className="mb-2 flex items-center gap-2">
+              <Avatar reader={reader} index={index} size={22} />
+              <p className="eyebrow">{displayName(reader, index)}</p>
+            </div>
+            <Inset className="p-3 text-sm leading-relaxed whitespace-pre-wrap text-ink-2">{text}</Inset>
+          </div>
+        ))}
+
+        {/* Written before notes were per-reader, so nobody knows whose it is.
+            Attributing it to somebody would be a guess written into their
+            history, so it stays unsigned and nothing new is ever added here. */}
+        {row?.notes?.trim() && (
+          <div className="mt-4">
+            <p className="eyebrow mb-2">Note from before</p>
+            <Inset className="p-3 text-sm leading-relaxed whitespace-pre-wrap text-ink-2">
+              {row.notes}
+            </Inset>
+          </div>
+        )}
+
+        {waitingOn.length > 0 && (
+          <p className="mt-3.5 px-1 text-xs leading-relaxed text-ink-2">
+            {waitingOn.length === 1
+              ? `${waitingOn[0]} has not written anything about this one yet.`
+              : `${waitingOn.slice(0, -1).join(', ')} and ${waitingOn.at(-1)} have not written anything about this one yet.`}
+          </p>
+        )}
       </Card>
 
       <Button variant="secondary" className="w-full" onClick={() => { haptics.tap(); copy() }}>

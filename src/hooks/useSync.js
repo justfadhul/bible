@@ -23,6 +23,8 @@ import {
   joinPair as rpcJoinPair,
   leavePair as rpcLeavePair,
   fetchRemoteState,
+  fetchReaders,
+  saveProfile,
   pushRemoteState,
   deleteRemoteReading,
   subscribeToPair,
@@ -199,6 +201,28 @@ export function useSync({ state, onMerged }) {
     },
     resync: () => sync(),
     uploadAvatar: (blob, userId) => uploadAvatar(blob, userId),
+    /**
+     * Publishes your own name and photo, so the others see them. Failure is
+     * swallowed on purpose: the local copy is already saved, and a reader who
+     * renamed themselves on a train should not be shown an error about it.
+     */
+    saveProfile: async (patch) => {
+      if (!session?.user?.id) return
+      try {
+        await saveProfile({ userId: session.user.id, ...patch })
+      } catch (e) {
+        setError(describe(e))
+      }
+    },
+    /** Just the roster — used when a profile changes but the history has not. */
+    refreshReaders: async () => {
+      if (!pair) return null
+      try {
+        return await fetchReaders()
+      } catch {
+        return null
+      }
+    },
   }
 
   return { enabled: remoteConfigured, ready, session, pair, status, error, notice, lastSyncedAt, push, ...actions }
@@ -208,6 +232,9 @@ function describe(e) {
   const msg = e?.message ?? String(e)
   if (/Could not find the table/i.test(msg)) {
     return 'The database tables are missing — run supabase/migrations/0001_shared_history.sql in the SQL editor.'
+  }
+  if (/pair_readers|profiles|notes_by/i.test(msg) && /could not find|does not exist|schema cache/i.test(msg)) {
+    return 'The readers table is missing — run supabase/migrations/0002_real_readers.sql in the SQL editor.'
   }
   if (/Failed to fetch|NetworkError|fetch failed/i.test(msg)) {
     return 'Cannot reach Supabase. Your history is still saved on this device.'

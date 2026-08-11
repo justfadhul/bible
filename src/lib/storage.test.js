@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { normalizeState, emptyState, migrateV1, SCHEMA_VERSION, MAX_READERS, makeReader } from './storage.js'
 import {
   recordSpin,
-  setNotes,
+  setMyNote,
   setReadBy,
   undoSpin,
   rowForDate,
@@ -40,7 +40,7 @@ describe('normalizeState survives bad input', () => {
       junkField: 'ignored',
     })
     expect(state.completed.map((r) => r.id)).toEqual([5, 6])
-    expect(state.completed[1]).toEqual({ id: 6, dateISO: null, notes: '', readBy: [] })
+    expect(state.completed[1]).toEqual({ id: 6, dateISO: null, notes: '', notesBy: {}, readBy: [] })
     expect(state).not.toHaveProperty('junkField')
     expect(problems.length).toBeGreaterThan(0)
   })
@@ -88,7 +88,7 @@ describe('normalizeState survives bad input', () => {
     let s = emptyState()
     const me = meId(s)
     s = recordSpin(s, 12, '2026-02-01')
-    s = setNotes(s, 12, 'we argued about verse 4')
+    s = setMyNote(s, 12, me, 'we argued about verse 4')
     s = setReadBy(s, 12, me, true)
     s = recordSpin(s, 200, '2026-02-02')
     const exported = JSON.parse(JSON.stringify(s))
@@ -140,9 +140,12 @@ describe('upgrading a version 1 history', () => {
     expect(state.readers.map((r) => r.name)).toEqual(['X', 'Y'])
   })
 
-  it('supplies defaults when the old names were missing', () => {
+  it('does not carry v1 placeholder names forward as real ones', () => {
+    // v1 with no names produced "Reader A"/"Reader B". Those are generated
+    // labels, not people, and v3 has no room for a reader nobody signed up as.
     const { state } = normalizeState({ version: 1, completed: [] })
-    expect(state.readers.map((r) => r.name)).toEqual(['Reader A', 'Reader B'])
+    expect(state.readers).toHaveLength(1)
+    expect(state.readers[0].name).toBe('')
   })
 
   it('is idempotent — re-normalising changes nothing', () => {

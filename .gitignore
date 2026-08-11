@@ -32,3 +32,4 @@ dist/
 .dbg2.mjs
 .load.mjs
 .readers.mjs
+.notes.mjs

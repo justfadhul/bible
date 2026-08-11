@@ -53,7 +53,16 @@ variable alone changes nothing about the running site.
 Without them the app still deploys and works — it just runs local-only, and Settings → Sharing
 says so.
 
-## 3. Put the code in the email ← the one that bites
+## 3. Run both migrations
+
+Supabase → SQL Editor → New query. Paste `supabase/migrations/0001_shared_history.sql`, Run; then
+`0002_real_readers.sql`, Run. Both are idempotent.
+
+0002 is the one that makes the reader list come from the database rather than from whatever another
+phone last uploaded, and gives each reader their own note. Without it the app still works — Settings
+→ Sharing will tell you which migration is missing.
+
+## 4. Put the code in the email ← the one that bites
 
 Sign-in is by email and password, but two things still arrive by email as a six-digit code:
 confirming a new address, and resetting a forgotten password. Supabase only puts the digits in if
@@ -67,7 +76,7 @@ Ordinary sign-in still works — this breaks the first account and every passwor
 Nothing needs adding to **URL Configuration**. The redirect allow-list governs links, and there are
 none; that whole class of "the link does nothing" problem does not exist here.
 
-## 4. Check it
+## 5. Check it
 
 1. Open the deployment in a private window — you should get the Manna sign-in page.
 2. **Read on this device** → the wheel. Spin. That path needs no backend at all.
@@ -76,7 +85,7 @@ none; that whole class of "the link does nothing" problem does not exist here.
 4. Sign out and back in with the password. That path touches no email at all.
 5. Settings → Sharing → **Start a shared history**, then join from a second device with the code.
 
-If step 3 emails you a link and no digits, it is step 3 above — the template.
+If step 3 emails you a link and no digits, it is step 4 above — the template.
 
 ---
 

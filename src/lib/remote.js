@@ -169,35 +169,98 @@ export async function leavePair(pairId) {
   if (error) throw error
 }
 
+/* ── the roster ────────────────────────────────────────────────────────── */
+
+/**
+ * Who is actually in this group, from the database.
+ *
+ * This replaces reading the roster out of `pairs.readers`, a jsonb document
+ * every client rewrote wholesale. Two things were wrong with that. Somebody
+ * who joined but had not opened the app yet was invisible to everyone, because
+ * nothing had written their row — and anybody in the group could overwrite
+ * anybody else's name, because it was all one document.
+ *
+ * Membership is already a table. So the roster is a query now: real accounts,
+ * each carrying the name and photo only its owner can set.
+ */
+export async function fetchReaders() {
+  need()
+  const { data, error } = await supabase.rpc('pair_readers')
+  if (error) throw error
+  return (data ?? []).map((r) => ({
+    id: r.user_id,
+    userId: r.user_id,
+    name: typeof r.display_name === 'string' ? r.display_name : '',
+    avatarUrl: typeof r.avatar_url === 'string' ? r.avatar_url : null,
+    email: r.email ?? null,
+  }))
+}
+
+/** Your own name and photo. The policy makes "your own" literal. */
+export async function saveProfile({ userId, name, avatarUrl }) {
+  need()
+  if (!userId) return
+  const { error } = await supabase
+    .from('profiles')
+    .upsert({ user_id: userId, display_name: name ?? '', avatar_url: avatarUrl ?? null }, { onConflict: 'user_id' })
+  if (error) throw error
+}
+
 /* ── state ─────────────────────────────────────────────────────────────── */
+
+const asNotesBy = (v) => {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return {}
+  const out = {}
+  for (const [k, text] of Object.entries(v)) {
+    if (typeof k === 'string' && typeof text === 'string' && text) out[k] = text
+  }
+  return out
+}
 
 const rowToReading = (r) => ({
   id: r.entry_id,
   dateISO: isISODate(r.date_iso) ? r.date_iso : null,
   notes: typeof r.notes === 'string' ? r.notes : '',
+  notesBy: asNotesBy(r.notes_by),
   readBy: Array.isArray(r.read_by) ? r.read_by.filter((x) => typeof x === 'string') : [],
   updatedAt: r.updated_at ?? null,
 })
 
-/** Pulls the pair's whole history into the app's own state shape. */
+/**
+ * Pulls the pair's whole history into the app's own state shape.
+ *
+ * The roster comes from pair_readers(); the readings come from the table. If
+ * the roster query fails — an older project that has not run migration 0002 —
+ * the readings still arrive and `readers` is null, which tells the caller to
+ * leave the roster it already has alone rather than emptying it.
+ */
 export async function fetchRemoteState(pair) {
   const { data, error } = await supabase
     .from('readings')
-    .select('entry_id,date_iso,notes,read_by,updated_at')
+    .select('entry_id,date_iso,notes,notes_by,read_by,updated_at')
     .eq('pair_id', pair.pair_id)
   if (error) throw error
 
-  // The roster arrives as whatever was last written, so it goes through the
-  // same guard as a file import rather than being trusted.
+  let readers = null
+  try {
+    readers = await fetchReaders()
+  } catch {
+    // Reported by the caller through the sync status; not worth losing a pull.
+  }
+
   const { state } = normalizeState({
     version: emptyState().version,
-    readers: Array.isArray(pair.readers) ? pair.readers : [],
+    readers: readers ?? [],
     completed: [],
     lastSpinDate: pair.last_spin_date,
   })
 
   return {
     ...state,
+    readers: readers ? state.readers : null,
+    // Tells the merge this roster is the database's answer, not another
+    // device's opinion — so it replaces rather than unions.
+    fromServer: Boolean(readers),
     completed: (data ?? []).map(rowToReading),
   }
 }
@@ -210,6 +273,7 @@ export async function pushRemoteState(pair, state) {
     entry_id: r.id,
     date_iso: r.dateISO,
     notes: r.notes ?? '',
+    notes_by: r.notesBy ?? {},
     read_by: r.readBy ?? [],
   }))
 
@@ -220,9 +284,13 @@ export async function pushRemoteState(pair, state) {
     if (error) throw error
   }
 
+  // pairs.readers is deliberately no longer written: the roster is
+  // pair_members joined to profiles, and each person owns their own row there.
+  // Pushing a whole roster from one device is what let a stale phone rename
+  // somebody else.
   const { error } = await supabase
     .from('pairs')
-    .update({ last_spin_date: state.lastSpinDate, readers: state.readers })
+    .update({ last_spin_date: state.lastSpinDate })
     .eq('id', pair.pair_id)
   if (error) throw error
 }
@@ -274,6 +342,9 @@ export function subscribeToPair(pair, onChange) {
       { event: '*', schema: 'public', table: 'pairs', filter: `id=eq.${pair.pair_id}` },
       onChange,
     )
+    // Unfiltered: the policy already limits what arrives to people you share a
+    // group with, and a name change is worth reflecting straight away.
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, onChange)
     .subscribe()
   return () => supabase.removeChannel(channel)
 }

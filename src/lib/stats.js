@@ -106,7 +106,8 @@ export function readerProgress(state) {
         reference: e.reference,
         dateISO: row.dateISO,
         readBy,
-        hasNotes: Boolean(row.notes?.trim()),
+        hasNotes: Boolean(row.notes?.trim()) || Object.values(row.notesBy ?? {}).some((t) => t?.trim()),
+        notesBy: row.notesBy ?? {},
       })
     }
 
@@ -144,7 +145,7 @@ export function archiveStats(state) {
     }
     // "everyone" only means something once there is somebody.
     if (readerCount > 0 && (r.readBy?.length ?? 0) >= readerCount) allRead++
-    if (r.notes?.trim()) withNotes++
+    if (r.notes?.trim() || Object.values(r.notesBy ?? {}).some((t) => t?.trim())) withNotes++
   }
   return {
     total: TOTAL,

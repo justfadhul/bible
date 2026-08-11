@@ -36,7 +36,7 @@ export function recordSpin(state, entryId, dateISO = localISODate()) {
   if (state.completed.some((r) => r.id === entryId)) return state
   return {
     ...state,
-    completed: [...state.completed, { id: entryId, dateISO, notes: '', readBy: [] }],
+    completed: [...state.completed, { id: entryId, dateISO, notes: '', notesBy: {}, readBy: [] }],
     lastSpinDate: dateISO,
   }
 }
@@ -54,8 +54,59 @@ export function undoSpin(state, entryId, previousLastSpinDate) {
   }
 }
 
-export function setNotes(state, entryId, notes) {
-  return { ...state, completed: state.completed.map((r) => (r.id === entryId ? { ...r, notes } : r)) }
+/**
+ * Writes one reader's own note on a reading.
+ *
+ * Keyed by reader, not shared, because a single box meant two people writing
+ * about the same passage silently overwrote each other — and because the
+ * useful thing to see afterwards is what the *other* person made of it, which
+ * a merged blob of text cannot tell you.
+ *
+ * An emptied note is deleted rather than stored as "", so a reading with
+ * nothing written on it has no author keys at all and the UI has nothing to
+ * attribute to anybody.
+ */
+export function setMyNote(state, entryId, readerId, text) {
+  if (!readerId) return state
+  return {
+    ...state,
+    completed: state.completed.map((r) => {
+      if (r.id !== entryId) return r
+      const notesBy = { ...(r.notesBy ?? {}) }
+      if (text?.trim()) notesBy[readerId] = text
+      else delete notesBy[readerId]
+      return { ...r, notesBy }
+    }),
+  }
+}
+
+/**
+ * Replaces the roster with the one the database returned.
+ *
+ * The group's membership is not this device's opinion, so it is taken
+ * wholesale rather than merged. The only thing carried over is a local reader
+ * with no account: someone who was reading here before signing up still needs
+ * somebody to tick, and their history is keyed to that id.
+ */
+export function setRoster(state, readers) {
+  if (!Array.isArray(readers)) return state
+  const localOnly = state.readers.filter(
+    (r) => !r.userId && !readers.some((x) => x.id === r.id),
+  )
+  const next = [...readers, ...localOnly]
+  const same =
+    next.length === state.readers.length &&
+    next.every((r, i) => {
+      const cur = state.readers[i]
+      return (
+        cur &&
+        cur.id === r.id &&
+        cur.name === r.name &&
+        cur.email === r.email &&
+        cur.avatarUrl === r.avatarUrl
+      )
+    })
+  return same ? state : { ...state, readers: next }
 }
 
 /** Ticks or unticks one reader against one reading. */
