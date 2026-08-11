@@ -1,9 +1,18 @@
-# The Spin Catalog
+# Manna
 
-A two-person daily Bible reading wheel. Spin once a day, read whatever comes up, discuss it.
+*A daily portion of Scripture, gathered together.*
+
+Named for Exodus 16: gathered fresh each morning, exactly one day's worth, and it could not be
+kept overnight. That is this app's rule rather than a decoration on top of it — one spin a day,
+binding, no stockpiling, and the same portion for everyone reading together.
+
+A daily Bible reading wheel for two people, or up to eight. Spin once a day, read whatever comes
+up, discuss it.
 
 The point is that neither of you chooses. So the app will not let you re-roll, and no passage
 comes up twice until all 286 have been read.
+
+**Deploying:** see [DEPLOY.md](DEPLOY.md). The name lives in one place, `src/lib/brand.js`.
 
 ```bash
 npm install
@@ -61,6 +70,9 @@ why. The keyboard route exists for hosts where the URL cannot be edited, such as
 
 ## Views
 
+- **The way in** — shown once on a device that has never been used: sign in for a shared history,
+  or read on this device. It is a door, not a gate; the local route is offered as plainly as the
+  sign-in, and anyone who takes it never sees the screen again. Sharing stays in Settings.
 - **Wheel** — the wheel, the spin button, and progress. Shows today's reading instead once spun.
 - **Today** — topic, reference, category badge, reading-load hint, hook, discussion question, a
   notes box that saves as you type, a checkbox per reader, and a copy button shaped for WhatsApp.

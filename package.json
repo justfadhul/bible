@@ -1,9 +1,9 @@
 {
-  "name": "spin-catalog",
+  "name": "manna",
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "A two-person daily Bible reading wheel. Spin, read the passage, discuss.",
+  "description": "A daily portion of Scripture, gathered together. Spin once a day, read whatever comes up, discuss.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

@@ -1,13 +1,13 @@
 <!-- Uses only the app's own interface tokens, never the catalog's category
      colours — the catalog stays the single source of truth for those. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="13" fill="#14161a"/>
+  <rect width="64" height="64" rx="14" fill="#e6ded0"/>
   <g transform="translate(32 34)">
-    <circle r="21" fill="none" stroke="#2f3540" stroke-width="1.5"/>
-    <path d="M0 -19 A19 19 0 0 1 16.5 9.5 L0 0 Z" fill="#ece6da"/>
-    <path d="M16.5 9.5 A19 19 0 0 1 -16.5 9.5 L0 0 Z" fill="#575c66"/>
-    <path d="M-16.5 9.5 A19 19 0 0 1 0 -19 L0 0 Z" fill="#8e8778"/>
-    <circle r="6" fill="#14161a" stroke="#2f3540" stroke-width="1.5"/>
+    <circle r="21" fill="none" stroke="#c8bda8" stroke-width="1.6"/>
+    <path d="M0 -19 A19 19 0 0 1 16.5 9.5 L0 0 Z" fill="#14625e"/>
+    <path d="M16.5 9.5 A19 19 0 0 1 -16.5 9.5 L0 0 Z" fill="#8a8172"/>
+    <path d="M-16.5 9.5 A19 19 0 0 1 0 -19 L0 0 Z" fill="#635c4e"/>
+    <circle r="6.4" fill="#f5f1e9" stroke="#c8bda8" stroke-width="1.4"/>
   </g>
-  <path d="M32 5.5 L27.5 14 L36.5 14 Z" fill="#d9c9a3"/>
+  <path d="M32 5.5 L27.2 14 L36.8 14 Z" fill="#2c2924"/>
 </svg>

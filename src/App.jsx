@@ -1,5 +1,5 @@
 /**
- * The Spin Catalog.
+ * Manna.
  *
  * Three views and a settings panel — that is a useState, not a router.
  * App owns persisted state, appearance, the once-a-day lock, and the
@@ -10,11 +10,13 @@ import WheelView from './components/WheelView.jsx'
 import TodayCard from './components/TodayCard.jsx'
 import FinishedSide from './components/FinishedSide.jsx'
 import Settings from './components/Settings.jsx'
+import AuthPage from './components/AuthPage.jsx'
 import { Alert, Button, Card, Icon, ICONS, Tabs } from './components/ui.jsx'
 import { getState, saveState, clearState, emptyState } from './lib/storage.js'
 import { useSync } from './hooks/useSync.js'
 import { getTheme, saveTheme, applyTheme, resolvedTheme } from './lib/theme.js'
 import { nameFromEmail } from './lib/readers.js'
+import { APP_NAME } from './lib/brand.js'
 import * as haptics from './lib/haptics.js'
 import {
   completedIds as idsOf,
@@ -34,6 +36,8 @@ import { getEntry, TOTAL, catalogProblems } from './lib/catalog.js'
 import { localISODate, msUntilLocalMidnight } from './lib/date.js'
 
 const UNDO_WINDOW_MS = 60_000
+/** Remembers that this device chose to read without an account. */
+const WELCOMED_KEY = 'spin-catalog:welcomed'
 
 /**
  * Dev override for the one-spin-a-day lock: append ?dev=1, or press
@@ -76,6 +80,13 @@ export default function App() {
   const [now, setNow] = useState(() => Date.now())
   const [dev, setDev] = useState(DEV_PARAM)
   const [theme, setThemeRaw] = useState(getTheme)
+  const [skippedAuth, setSkippedAuth] = useState(() => {
+    try {
+      return localStorage.getItem(WELCOMED_KEY) === '1'
+    } catch {
+      return true // no storage means no way to remember a dismissal — do not trap anyone here
+    }
+  })
   const mainRef = useRef(null)
 
   const setTheme = useCallback((next) => {
@@ -231,6 +242,24 @@ export default function App() {
 
   const isDark = resolvedTheme(theme) === 'dark'
 
+  // Show the way in once: on a device with no session, no history, and no
+  // record of having chosen to read locally. Anyone mid-way through a
+  // catalog never sees it, session or not.
+  const needsWelcome =
+    sync.enabled && !sync.session && !skippedAuth && state.completed.length === 0
+
+  if (needsWelcome) {
+    return (
+      <AuthPage
+        sync={sync}
+        onSkip={() => {
+          try { localStorage.setItem(WELCOMED_KEY, '1') } catch { /* it will ask once more */ }
+          setSkippedAuth(true)
+        }}
+      />
+    )
+  }
+
   return (
     <div className="flex min-h-dvh flex-col bg-ground">
       <p aria-live="polite" aria-atomic="true" className="sr-only-live">
@@ -242,7 +271,7 @@ export default function App() {
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
         <div className="mx-auto flex max-w-lg items-center gap-3 px-4 pt-3 pb-2">
-          <h1 className="flex-1 font-serif text-xl font-semibold tracking-[-0.01em]">The Spin Catalog</h1>
+          <h1 className="flex-1 font-serif text-xl font-semibold tracking-[-0.01em]">{APP_NAME}</h1>
           <IconButton
             label={`Switch to ${isDark ? 'light' : 'dark'} appearance`}
             onClick={() => setTheme(isDark ? 'light' : 'dark')}

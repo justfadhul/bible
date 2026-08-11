@@ -25,3 +25,4 @@ dist/
 .shot2.mjs
 .shot3.mjs
 .spin.mjs
+.auth.mjs

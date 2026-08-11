@@ -12,6 +12,7 @@ import Readers from './Readers.jsx'
 import Sharing from './Sharing.jsx'
 import { normalizeState } from '../lib/storage.js'
 import { TOTAL, meta } from '../lib/catalog.js'
+import { APP_NAME } from '../lib/brand.js'
 
 function Group({ header, footer, children, className = '' }) {
   return (
@@ -35,7 +36,7 @@ export default function Settings({ state, sync, theme, onTheme, onImport, onRese
     const a = document.createElement('a')
     const stamp = new Date().toISOString().slice(0, 10)
     a.href = url
-    a.download = `spin-catalog-${stamp}.json`
+    a.download = `${APP_NAME.toLowerCase()}-${stamp}.json`
     document.body.appendChild(a)
     a.click()
     a.remove()
@@ -139,7 +140,7 @@ export default function Settings({ state, sync, theme, onTheme, onImport, onRese
           ref={fileRef}
           type="file"
           accept="application/json,.json"
-          aria-label="Choose a Spin Catalog export file to import"
+          aria-label={`Choose a ${APP_NAME} export file to import`}
           onChange={(e) => importJSON(e.target.files?.[0])}
           className="sr-only-live"
           tabIndex={-1}

@@ -1,0 +1,14 @@
+{
+  "name": "Manna",
+  "short_name": "Manna",
+  "description": "A daily portion of Scripture, gathered together.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#e6ded0",
+  "theme_color": "#e6ded0",
+  "icons": [
+    { "src": "./favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

@@ -43,7 +43,7 @@ const safeJs = js.replace(/<\/script/gi, '<\\/script')
 // file without one leaves the browser to guess, and every em dash and curly
 // quote in the catalog turns to mojibake.
 const html = `<meta charset="utf-8">
-<title>The Spin Catalog</title>
+<title>Manna — a daily portion of Scripture</title>
 <style>
 ${css}
 </style>
