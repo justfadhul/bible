@@ -55,9 +55,9 @@ for (const [i, h] of (config.headers ?? []).entries()) {
   }
 }
 
-// The SPA rewrite is what keeps a magic-link return from 404ing.
+// The SPA rewrite is what keeps a refresh or a deep link from 404ing.
 const spa = (config.rewrites ?? []).some((r) => r.destination === '/index.html')
-if (!spa) problems.push('no rewrite to /index.html — deep links and magic-link returns would 404')
+if (!spa) problems.push('no rewrite to /index.html — a refresh or a deep link would 404')
 
 // The app must be allowed to reach its own backend.
 const csp = (config.headers ?? [])

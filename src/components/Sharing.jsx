@@ -1,11 +1,12 @@
 /**
- * Sharing: sign in with a magic link, then create or join a pair.
+ * Sharing: sign in with an emailed code, then create or join a pair.
  *
  * The whole panel is optional. With no session the app is exactly what it was
  * before — local, private, and fully working — so this never blocks reading.
  */
 import { useState } from 'react'
 import { Alert, Badge, Button, Card, Field, Icon, ICONS } from './ui.jsx'
+import SignInForm from './SignInForm.jsx'
 import { describeSyncError } from '../hooks/useSync.js'
 import * as haptics from '../lib/haptics.js'
 
@@ -30,9 +31,7 @@ function Group({ header, footer, children, className = '' }) {
 }
 
 export default function Sharing({ sync }) {
-  const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
-  const [sent, setSent] = useState(false)
   const [busy, setBusy] = useState(false)
   const [localError, setLocalError] = useState(null)
   const [copied, setCopied] = useState(false)
@@ -76,45 +75,9 @@ export default function Sharing({ sync }) {
     return (
       <Group
         header="Sharing"
-        footer="One sign-in each, then one of you shares a code. Until then everything stays on this device."
+        footer="One sign-in each, then one of you shares a group code. Until then everything stays on this device."
       >
-        {sent ? (
-          <div className="space-y-3">
-            <Alert icon={ICONS.check}>
-              Check <span className="font-semibold">{email}</span> for a sign-in link. Opening it on this
-              device finishes the job.
-            </Alert>
-            <Button variant="secondary" className="w-full" onClick={() => setSent(false)}>
-              Use a different address
-            </Button>
-          </div>
-        ) : (
-          <form
-            className="space-y-3"
-            onSubmit={(e) => {
-              e.preventDefault()
-              run(async () => {
-                await sync.sendLink(email)
-                setSent(true)
-              })
-            }}
-          >
-            <Field
-              id="sync-email"
-              type="email"
-              label="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              required
-              autoComplete="email"
-              error={localError}
-            />
-            <Button type="submit" className="w-full" disabled={busy || !email.trim()} busy={busy}>
-              Email me a sign-in link
-            </Button>
-          </form>
-        )}
+        <SignInForm sync={sync} />
       </Group>
     )
   }

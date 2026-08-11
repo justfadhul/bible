@@ -12,7 +12,8 @@ import {
   remoteConfigured,
   currentSession,
   onAuthChange,
-  sendMagicLink,
+  sendCode,
+  verifyCode,
   signOut as remoteSignOut,
   myPair,
   createPair as rpcCreatePair,
@@ -141,7 +142,8 @@ export function useSync({ state, onMerged }) {
 
   /* ── actions ── */
   const actions = {
-    sendLink: (email) => sendMagicLink(email),
+    sendCode: (email) => sendCode(email),
+    verifyCode: (email, token) => verifyCode(email, token),
     signOut: async () => {
       await remoteSignOut()
       setPair(null)
@@ -190,6 +192,16 @@ function describe(e) {
     return 'No group has that code. Check it and try again.'
   }
   if (/already has eight readers|group is full/i.test(msg)) return 'That group already has eight readers.'
+  // The code path, where the wording Supabase sends is too internal to show.
+  if (/token has expired|otp.*expired|expired or is invalid/i.test(msg)) {
+    return 'That code is wrong, or it has expired. Ask for a new one.'
+  }
+  if (/only request this after|rate limit|too many requests/i.test(msg)) {
+    return 'Too many codes requested just now. Wait a minute and try again.'
+  }
+  if (/signups not allowed|signup is disabled/i.test(msg)) {
+    return 'That address has no account yet, and new sign-ups are turned off for this project.'
+  }
   if (/JWT|not signed in|sign in first/i.test(msg)) return 'That session has expired. Sign in again.'
   return msg
 }

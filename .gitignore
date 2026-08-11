@@ -27,3 +27,4 @@ dist/
 .spin.mjs
 .auth.mjs
 .plate.mjs
+.code.mjs

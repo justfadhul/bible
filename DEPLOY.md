@@ -53,45 +53,40 @@ variable alone changes nothing about the running site.
 Without them the app still deploys and works — it just runs local-only, and Settings → Sharing
 says so.
 
-## 3. Tell Supabase about the new domain ← the one that bites
+## 3. Put the code in the email ← the one that bites
 
-Supabase → Authentication → URL Configuration:
+Sign-in is by six-digit code, and Supabase only puts the digits in the email if the template asks
+for them. **Authentication → Emails**: add `{{ .Token }}` to both **Confirm signup** and
+**Magic Link**. [AUTH.md](AUTH.md) has the markup to paste and explains why it is two templates.
 
-- **Site URL:** `https://<your-project>.vercel.app`
-- **Redirect URLs:** add both
-  - `https://<your-project>.vercel.app/**`
-  - `https://*-<your-team>.vercel.app/**` — so preview deploys work too
+Until that is done, sign-in emails arrive containing only a link, and there is nothing to type into
+the app. Everything else works — this is the only step that can leave the deployment half-usable.
 
-The app asks for a magic link back to `window.location.origin + pathname`. If that origin is not
-on the allow list, Supabase silently redirects to the Site URL instead, and the link appears to
-"do nothing" or lands people on the wrong deployment still signed out. This is the single most
-common reason magic links look broken after a first deploy.
-
-While you are there: Authentication → Providers → Email should have **Confirm email** on and
-**Enable email provider** on. Both were already set when this was checked.
+Nothing needs adding to **URL Configuration**. The redirect allow-list governs links, and there are
+none; that whole class of "the link does nothing" problem does not exist here.
 
 ## 4. Check it
 
 1. Open the deployment in a private window — you should get the Manna sign-in page.
 2. **Read on this device** → the wheel. Spin. That path needs no backend at all.
-3. Reopen, sign in with your email, tap the link on the same device. You should land back on the
-   app signed in, with your name filled in from the address.
+3. Reopen, enter your email, and type the six digits it sends. You should land signed in with your
+   name filled in from the address.
 4. Settings → Sharing → **Start a shared history**, then join from a second device with the code.
 
-If step 3 returns you signed out, it is almost always step 3 above — the redirect URL.
+If step 3 emails you a link and no digits, it is step 3 above — the template.
 
 ---
 
 ## Notes
 
-**Custom domain.** Settings → Domains. Add the domain to Supabase's redirect list too, or you
-will reintroduce the same problem.
+**Custom domain.** Settings → Domains, and that is the whole job — there is no redirect allow-list
+to keep in step, because sign-in is by code.
 
 **What is in `vercel.json`, and why.** Since the file cannot carry its own comments:
 
 | Setting | Reason |
 |---|---|
-| rewrite everything except `assets/`, `favicon`, `manifest`, `robots` → `/index.html` | Single-page app. A magic-link return, a refresh or a deep link would otherwise 404. |
+| rewrite everything except `assets/`, `favicon`, `manifest`, `robots` → `/index.html` | Single-page app. A refresh or a deep link would otherwise 404. |
 | `assets/*` immutable for a year | The filenames are content-hashed, so they can never go stale. |
 | `index.html` `must-revalidate` | Otherwise a deploy strands people on the previous bundle. |
 | CSP `connect-src` limited to `*.supabase.co` plus `wss:` | The app talks to exactly one host. Realtime needs the websocket scheme spelled out separately. |

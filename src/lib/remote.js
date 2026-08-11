@@ -25,6 +25,8 @@ export const remoteConfigured = Boolean(URL && ANON)
 
 export const supabase = remoteConfigured
   ? createClient(URL, ANON, {
+      // detectSessionInUrl stays on even though sign-in is by code now: any
+      // link already sitting in someone's inbox should still work.
       auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
     })
   : null
@@ -32,16 +34,48 @@ export const supabase = remoteConfigured
 /* ── auth ──────────────────────────────────────────────────────────────── */
 
 /**
- * Sends a magic link. `emailRedirectTo` is the page the link returns to, so
- * the session lands back in this app rather than on Supabase's own page.
+ * Emails a six-digit code.
+ *
+ * Supabase mints that code for every passwordless sign-in whether or not
+ * anything displays it — the link and the code are two renderings of the same
+ * token. Which one arrives is decided entirely by the project's email
+ * templates, which must contain `{{ .Token }}`; see AUTH.md.
+ *
+ * There is deliberately no `emailRedirectTo`, because there is nowhere to
+ * redirect to. That is most of the point: a code cannot be opened on the wrong
+ * device, cannot land on a preview deployment instead of the real one, cannot
+ * be burned by a corporate link scanner following it first, and needs no
+ * allow-list of redirect URLs to be kept in step with every new domain.
  */
-export async function sendMagicLink(email) {
+export async function sendCode(email) {
   if (!supabase) throw new Error('No Supabase project is configured.')
   const { error } = await supabase.auth.signInWithOtp({
     email: email.trim(),
-    options: { emailRedirectTo: window.location.origin + window.location.pathname },
+    options: { shouldCreateUser: true },
   })
   if (error) throw error
+}
+
+/**
+ * Exchanges the code for a session.
+ *
+ * A first-time address is confirmed by a signup token and a returning one by a
+ * magiclink token. `email` is the type that covers both, but a project can be
+ * configured such that it does not, and to the person typing, a rejected type
+ * and a mistyped code look exactly the same. So on the one error that could be
+ * either, try the other type before telling anyone their code is wrong.
+ */
+export async function verifyCode(email, token) {
+  if (!supabase) throw new Error('No Supabase project is configured.')
+  const clean = String(token).replace(/\D/g, '')
+  const attempt = (type) => supabase.auth.verifyOtp({ email: email.trim(), token: clean, type })
+
+  let { data, error } = await attempt('email')
+  if (error && /expired|invalid/i.test(error.message ?? '')) {
+    ;({ data, error } = await attempt('signup'))
+  }
+  if (error) throw error
+  return data?.session ?? null
 }
 
 export async function signOut() {

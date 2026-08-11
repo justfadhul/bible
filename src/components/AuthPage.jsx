@@ -11,11 +11,9 @@
  * it. After that the app opens on the wheel, and everything here is still
  * reachable from Settings → Sharing.
  */
-import { useState } from 'react'
-import { Alert, Button, Field, Icon, ICONS } from './ui.jsx'
+import { Button, Icon, ICONS } from './ui.jsx'
+import SignInForm from './SignInForm.jsx'
 import { APP_NAME, APP_TAGLINE } from '../lib/brand.js'
-import { describeSyncError } from '../hooks/useSync.js'
-import * as haptics from '../lib/haptics.js'
 
 /** The wheel as a mark: six segments and a pointer, drawn from the ink tokens. */
 function Mark() {
@@ -34,27 +32,6 @@ function Mark() {
 }
 
 export default function AuthPage({ sync, onSkip }) {
-  const [email, setEmail] = useState('')
-  const [sent, setSent] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState(null)
-
-  const send = async (e) => {
-    e.preventDefault()
-    setBusy(true)
-    setError(null)
-    try {
-      await sync.sendLink(email)
-      setSent(true)
-      haptics.toggle()
-    } catch (err) {
-      haptics.error()
-      setError(describeSyncError(err))
-    } finally {
-      setBusy(false)
-    }
-  }
-
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-7 px-5 py-10">
       <header className="reveal text-center">
@@ -65,57 +42,25 @@ export default function AuthPage({ sync, onSkip }) {
         <p className="mt-2.5 text-balance text-ink-2">{APP_TAGLINE}</p>
       </header>
 
-      {sent ? (
-        <div className="reveal reveal-delay-1 space-y-3.5">
-          <Alert icon={ICONS.check}>
-            A sign-in link is on its way to <span className="font-semibold">{email}</span>. Open it on this
-            device and you will land back here, signed in.
-          </Alert>
-          <Button variant="secondary" className="w-full" onClick={() => setSent(false)}>
-            Use a different address
-          </Button>
-          <Button variant="quiet" className="w-full" onClick={onSkip}>
-            Skip for now
-          </Button>
-        </div>
-      ) : (
-        <>
-          <form onSubmit={send} className="reveal reveal-delay-1 space-y-3.5">
-            <Field
-              id="auth-email"
-              type="email"
-              label="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              autoComplete="email"
-              inputMode="email"
-              required
-              error={error}
-              hint="No password. We send a link, you tap it."
-            />
-            <Button type="submit" size="lg" className="w-full" disabled={busy || !email.trim()} busy={busy}>
-              Email me a sign-in link
-            </Button>
-          </form>
+      <div className="reveal reveal-delay-1">
+        <SignInForm sync={sync} size="lg" />
+      </div>
 
-          <div className="reveal reveal-delay-2 flex items-center gap-3">
-            <span className="h-px flex-1 bg-hairline" />
-            <span className="text-2xs tracking-[0.1em] uppercase text-ink-2">or</span>
-            <span className="h-px flex-1 bg-hairline" />
-          </div>
+      <div className="reveal reveal-delay-2 flex items-center gap-3">
+        <span className="h-px flex-1 bg-hairline" />
+        <span className="text-2xs tracking-[0.1em] uppercase text-ink-2">or</span>
+        <span className="h-px flex-1 bg-hairline" />
+      </div>
 
-          <div className="reveal reveal-delay-2 space-y-3">
-            <Button variant="secondary" size="lg" className="w-full" onClick={onSkip}>
-              Read on this device
-            </Button>
-            <p className="px-2 text-center text-xs leading-relaxed text-ink-2">
-              Everything works without an account — the wheel, the archive, your notes. Signing in only
-              adds one thing: the same history on more than one phone. You can do it later from Settings.
-            </p>
-          </div>
-        </>
-      )}
+      <div className="reveal reveal-delay-2 space-y-3">
+        <Button variant="secondary" size="lg" className="w-full" onClick={onSkip}>
+          Read on this device
+        </Button>
+        <p className="px-2 text-center text-xs leading-relaxed text-ink-2">
+          Everything works without an account — the wheel, the archive, your notes. Signing in only adds
+          one thing: the same history on more than one phone. You can do it later from Settings.
+        </p>
+      </div>
 
       <ul className="reveal reveal-delay-3 mx-auto max-w-xs space-y-2.5 text-sm text-ink-2">
         {[
