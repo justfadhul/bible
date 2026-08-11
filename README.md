@@ -9,6 +9,7 @@ comes up twice until all 286 have been read.
 npm install
 npm run dev      # http://localhost:5173
 npm run check    # validate catalog → no duplication → tests → 200-run simulation → build
+npm run build:single   # one self-contained HTML file, zero external requests
 ```
 
 ---
@@ -52,7 +53,8 @@ step and no spin-again button. A single undo is available for 60 seconds, held i
 deliberately not persisted, so it cannot survive a reload and be used to shop for a better passage.
 
 **One spin per calendar day**, local time. The day rolls over live at midnight. To test, append
-`?dev=1` to the URL — this lifts the lock and shows a banner explaining why.
+`?dev=1` to the URL, or press Shift+Alt+D — either lifts the lock and shows a banner explaining
+why. The keyboard route exists for hosts where the URL cannot be edited, such as an embedded preview.
 
 ## Views
 

@@ -28,10 +28,12 @@ import { localISODate, msUntilLocalMidnight } from './lib/date.js'
 const UNDO_WINDOW_MS = 60_000
 
 /**
- * Dev override for the one-spin-a-day lock: append ?dev=1. Deliberately not a
- * visible control — the lock is the point of the app.
+ * Dev override for the one-spin-a-day lock: append ?dev=1, or press
+ * Shift+Alt+D. Deliberately not a visible control — the lock is the point of
+ * the app, and the keyboard route exists for when the URL cannot be edited
+ * (an embedded preview, for instance).
  */
-const DEV = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('dev')
+const DEV_PARAM = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('dev')
 
 const TABS = [
   ['wheel', 'Wheel'],
@@ -47,7 +49,19 @@ export default function App() {
   const [justSpunId, setJustSpunId] = useState(null)
   const [undo, setUndo] = useState(null) // { entryId, previousLastSpinDate, expiresAt }
   const [now, setNow] = useState(() => Date.now())
+  const [dev, setDev] = useState(DEV_PARAM)
   const mainRef = useRef(null)
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.altKey && e.shiftKey && e.key.toLowerCase() === 'd') {
+        e.preventDefault()
+        setDev((on) => !on)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   const commit = useCallback((next) => {
     setStateRaw(next)
@@ -73,7 +87,7 @@ export default function App() {
 
   const completedIds = useMemo(() => idsOf(state), [state])
   const exhausted = isExhausted(state, TOTAL)
-  const spunToday = state.lastSpinDate === today && !DEV
+  const spunToday = state.lastSpinDate === today && !dev
   const canSpin = !spunToday && !exhausted
 
   // Prefer the spin that just happened; otherwise whatever is recorded today.
@@ -191,9 +205,9 @@ export default function App() {
       </header>
 
       <main ref={mainRef} className="flex-1 mx-auto w-full max-w-lg px-4 py-6 pb-16">
-        {DEV && (
+        {dev && (
           <p className="mb-4 rounded-lg border border-warn-line bg-warn-bg p-2.5 text-2xs text-warn">
-            Dev mode — the once-a-day lock is off, so you can spin repeatedly. Remove <code>?dev=1</code> to restore it.
+            Dev mode — the once-a-day lock is off, so you can spin repeatedly. Press Shift+Alt+D (or drop <code>?dev=1</code>) to restore it.
           </p>
         )}
 

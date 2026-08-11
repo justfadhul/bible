@@ -15,3 +15,4 @@ dist/
 .edge.mjs
 .watchdog.mjs
 .reach.mjs
+.preview-test.mjs

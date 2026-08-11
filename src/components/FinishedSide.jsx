@@ -12,6 +12,8 @@ import { archiveStats } from '../lib/stats.js'
 import { byNewest } from '../lib/state.js'
 import { readableInk } from '../lib/wheel.js'
 
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'} read`
+
 function Stat({ value, label, sub }) {
   return (
     <div className="rounded-xl border border-line-soft bg-ground-2 px-3 py-3">
@@ -147,7 +149,7 @@ export default function FinishedSide({ state }) {
       <div className="grid grid-cols-3 gap-2">
         <Stat value={stats.read} label="read" sub={`${stats.remaining} to come`} />
         <Stat value={stats.current} label="day streak" sub={stats.current === 0 ? 'none yet' : 'current'} />
-        <Stat value={stats.longest} label="longest" sub={`${stats.days} days read`} />
+        <Stat value={stats.longest} label="longest" sub={plural(stats.days, 'day')} />
         <Stat value={`${Math.floor(stats.fraction * 100)}%`} label="of catalog" sub={`of ${TOTAL}`} />
         <Stat value={stats.bothRead} label="read by both" sub="ticked twice" />
         <Stat value={stats.withNotes} label="with notes" sub={`of ${stats.read || 0}`} />
