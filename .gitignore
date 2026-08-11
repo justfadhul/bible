@@ -18,3 +18,8 @@ dist/
 .preview-test.mjs
 .dbg.mjs
 .themes.mjs
+
+# secrets
+.env
+.env.local
+.shot2.mjs

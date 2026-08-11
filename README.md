@@ -98,6 +98,45 @@ Settings has **Export JSON**, **Import JSON**, and a **Reset** that requires typ
 would rather not have it, delete the field from `emptyState()`, the "Who is reading" panel in
 `Settings.jsx`, and the two labels in `TodayCard.jsx`.
 
+## Sharing a history between two devices (Supabase)
+
+Optional. With no project configured the app is exactly what it was — local,
+private, and fully working — and nothing below is required to use it.
+
+The project URL and **anon** key go in `.env` (gitignored; see `.env.example`).
+The anon key is designed to ship in the client and is protected by row level
+security. The service-role key bypasses RLS entirely and must never appear in
+`.env`, in the bundle, or in this repo.
+
+**Run the migration once**: open Supabase → SQL Editor → New query, paste
+`supabase/migrations/0001_shared_history.sql`, Run. It is idempotent.
+
+Then, in Settings → Sharing: each of you signs in with a magic link, one
+creates a shared history and reads out the eight-character invite code, the
+other enters it. From then on both devices read and write the same rows, and
+changes appear on the other phone without a refresh.
+
+**How it is secured.** Every table has RLS on, and every policy resolves
+through `is_pair_member()`, which is `SECURITY DEFINER` so checking your own
+membership does not require reading a table you may not be allowed to read.
+Nothing is world-readable. The invite code is a bearer secret, so joining goes
+through a `SECURITY DEFINER` function rather than a select policy — the pairs
+table is never directly readable by a non-member, which means codes cannot be
+enumerated by listing.
+
+**Local stays authoritative.** Reads and writes hit `localStorage` first and
+synchronously; the remote is a second copy merged in when a session exists. A
+reading app that cannot open its own history because the network is down has
+failed at the only thing it does.
+
+**Merging never loses a reading.** The whole app rests on a passage coming up
+once, so the merge is a union over entry ids, never a choice between two
+lists. Within a row: the earlier date wins (the day it was first drawn), read
+ticks are OR'd (nobody else's device may un-say that you read it), notes take
+the newer copy, and the day lock takes the later of the two — if either device
+has spun today, the day is spent. Deletion is the one thing a union cannot
+express, which is why undo deletes from the remote directly.
+
 ## Design
 
 Quiet and typographic — a well-set print devotional rather than a game show. A serif for topics and
@@ -134,7 +173,7 @@ These are measured, not assumed — see the audit results below.
 |---|---|
 | Catalog contract | 286 entries, 15 categories, ids 1–286 unique and contiguous, no duplicate topics or references |
 | No duplicated content | 26 source files scanned against 1,179 catalog strings — clean |
-| Unit tests | 56 passing |
+| Unit tests | 68 passing |
 | Simulation | 200 playthroughs × 286 spins = 57,200 spins; every run produced all 286 entries with zero repeats; the 287th spin returned the completion state every time; 725,735 dead-segment checks and 114,400 landing checks all held |
 
 Browser checks (Chromium at 380px), all passing:

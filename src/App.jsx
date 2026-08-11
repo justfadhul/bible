@@ -12,6 +12,7 @@ import FinishedSide from './components/FinishedSide.jsx'
 import Settings from './components/Settings.jsx'
 import { Alert, Button, Card, Icon, ICONS, Tabs } from './components/ui.jsx'
 import { getState, saveState, clearState, emptyState } from './lib/storage.js'
+import { useSync } from './hooks/useSync.js'
 import { getTheme, saveTheme, applyTheme, resolvedTheme } from './lib/theme.js'
 import {
   completedIds as idsOf,
@@ -93,10 +94,23 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  // The local copy is authoritative: it is written first and synchronously, so
+  // nothing the reader does ever waits on the network.
+  const syncRef = useRef(null)
   const commit = useCallback((next) => {
     setStateRaw(next)
     saveState(next)
+    syncRef.current?.push(next)
   }, [])
+
+  const sync = useSync({
+    state,
+    onMerged: (merged) => {
+      setStateRaw(merged)
+      saveState(merged)
+    },
+  })
+  syncRef.current = sync
 
   // Roll the day over live, so a phone left open overnight unlocks by itself.
   useEffect(() => {
@@ -150,12 +164,13 @@ export default function App() {
 
   const doUndo = useCallback(() => {
     if (!undo) return
+    sync.forget?.(undo.entryId)
     commit(undoSpin(state, undo.entryId, undo.previousLastSpinDate))
     setUndo(null)
     setJustSpunId(null)
     setAnnouncement('Spin undone. That passage is back in the pool.')
     setView('wheel')
-  }, [undo, state, commit])
+  }, [undo, state, commit, sync])
 
   const undoInfo = useMemo(() => {
     if (!undo || !todayRow || undo.entryId !== todayRow.id) return null
@@ -266,6 +281,7 @@ export default function App() {
         {view === 'settings' && (
           <Settings
             state={state}
+            sync={sync}
             theme={theme}
             onTheme={setTheme}
             onImport={(next) => {

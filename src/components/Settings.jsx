@@ -8,6 +8,7 @@
  */
 import { useRef, useState } from 'react'
 import { Alert, Button, Card, Field, Icon, ICONS, Segmented } from './ui.jsx'
+import Sharing from './Sharing.jsx'
 import { normalizeState } from '../lib/storage.js'
 import { TOTAL, meta } from '../lib/catalog.js'
 
@@ -21,7 +22,7 @@ function Group({ header, footer, children, className = '' }) {
   )
 }
 
-export default function Settings({ state, theme, onTheme, onImport, onReset, onReaderName }) {
+export default function Settings({ state, sync, theme, onTheme, onImport, onReset, onReaderName }) {
   const fileRef = useRef(null)
   const [status, setStatus] = useState(null)
   const [pendingReset, setPendingReset] = useState(false)
@@ -80,6 +81,8 @@ export default function Settings({ state, theme, onTheme, onImport, onReset, onR
           </Alert>
         </div>
       )}
+
+      {sync && <Sharing sync={sync} />}
 
       <Group header="Appearance" footer="System follows your device's Light or Dark setting, and changes with it.">
         <Segmented
@@ -185,8 +188,9 @@ export default function Settings({ state, theme, onTheme, onImport, onReset, onR
       <p className="px-1 pb-2 text-xs leading-relaxed text-ink-2">
         {state.completed.length} of {TOTAL} read · catalog v{meta.version}
         <br />
-        History is stored in this browser only. Nothing is sent anywhere, and clearing site data will
-        remove it — export a copy if it matters to you.
+        {sync?.pair
+          ? 'History is saved on this device and in your shared Supabase project, so either of you can read it from anywhere.'
+          : 'History is stored in this browser only. Nothing is sent anywhere, and clearing site data will remove it — export a copy if it matters to you.'}
       </p>
     </div>
   )

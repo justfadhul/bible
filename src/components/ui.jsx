@@ -74,7 +74,9 @@ export function Button({
       ? {
           background: props.disabled ? 'var(--surface-inset)' : 'var(--accent)',
           color: props.disabled ? 'var(--ink-2)' : 'var(--accent-ink)',
-          boxShadow: props.disabled ? 'var(--inset)' : 'var(--e3)',
+          // Disabled is flat, not inset: inset means a container, and a
+          // dead control should not look like somewhere to type.
+          boxShadow: props.disabled ? 'none' : 'var(--e3)',
           transition: 'box-shadow .24s var(--ease), transform .24s var(--ease), background-color .24s var(--ease)',
         }
       : undefined
