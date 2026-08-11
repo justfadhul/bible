@@ -16,27 +16,37 @@ import { usePrefersReducedMotion } from '../hooks/useMedia.js'
 import * as haptics from '../lib/haptics.js'
 
 /**
- * 6.7 seconds, end to end. Long enough that the wheel is genuinely coasting
+ * Seven seconds, end to end. Long enough that the wheel is genuinely coasting
  * rather than snapping to an answer, and long enough for the detents to space
  * out audibly as it slows.
  *
  * The beat between the stages is not dead time — it is the moment you read
  * which category came up, before the wheel becomes that category's passages.
- * It is sized for that: a second and a bit is what an unfamiliar two- or
- * three-word phrase takes to land, and anything under it is a flicker you
- * notice without reading. The two stages give back what it costs, so the whole
- * sequence still finishes on the same 6.7.
+ * It is the longest single stretch of the sequence on purpose. A pause sized
+ * to the *minimum* it takes to read something reads as rushed even when the
+ * words did technically land: you finish the phrase exactly as it leaves, with
+ * no moment of simply having read it. So the plate is given room either side —
+ * a beat before it arrives so the wheel stopping registers on its own, and
+ * over a second of stillness after it has fully arrived.
+ *
+ * The two spin stages pay for it, so the whole sequence is still 6-7 seconds.
  */
-const STAGE_1_MS = 2800
-const HANDOVER_MS = 1150
-const STAGE_2_MS = 2450
+const STAGE_1_MS = 2500
+const HANDOVER_MS = 2200
+const STAGE_2_MS = 2000
 const SETTLE_MS = 300
-export const TOTAL_SPIN_MS = STAGE_1_MS + HANDOVER_MS + STAGE_2_MS + SETTLE_MS // 6700
+export const TOTAL_SPIN_MS = STAGE_1_MS + HANDOVER_MS + STAGE_2_MS + SETTLE_MS // 7000
 
-/** The face swap happens behind the name plate, well before it lifts. */
-const FACE_SWAP_MS = 780
+/* How the handover is spent. Derived, so the parts cannot drift from the whole. */
+const REVEAL_DELAY_MS = 200
+const REVEAL_IN_MS = 380
+const REVEAL_OUT_MS = 320
+const REVEAL_HOLD_MS = HANDOVER_MS - REVEAL_DELAY_MS - REVEAL_IN_MS - REVEAL_OUT_MS // 1300
+
+/** The face swap happens behind the plate, while it is still fully up. */
+const FACE_SWAP_MS = REVEAL_DELAY_MS + REVEAL_IN_MS + 500
 /** Reduced motion still gets the name — reading it is information, not motion. */
-const REDUCED_REVEAL_MS = 1000
+const REDUCED_REVEAL_MS = 1500
 
 /**
  * The category, named, over the wheel it just came off.
@@ -44,19 +54,41 @@ const REDUCED_REVEAL_MS = 1000
  * Deliberately opaque and centred rather than a caption somewhere below: the
  * wheel behind it has stopped and is about to become a different wheel, so
  * this is the one moment where nothing else on screen is worth looking at.
- * It is aria-hidden because the same words go to the live region in the same
- * tick, and hearing them twice is worse than not seeing them once.
+ *
+ * The hairline underneath depletes across the hold. It is not decoration —
+ * a screen that has deliberately stopped for over a second looks identical to
+ * one that has hung, and this is the only thing on it that says which. It also
+ * turns waiting into watching, which is most of why the pause stops feeling
+ * like one.
+ *
+ * aria-hidden because the same words go to the live region in the same tick,
+ * and hearing them twice is worse than not seeing them once.
  */
-function CategoryPlate({ category, showing }) {
+function CategoryPlate({ category, showing, unread, animated = true }) {
+  const [up, setUp] = useState(false)
+
+  useEffect(() => {
+    if (!showing) {
+      setUp(false)
+      return
+    }
+    const t = setTimeout(() => setUp(true), animated ? REVEAL_DELAY_MS : 0)
+    return () => clearTimeout(t)
+  }, [showing, animated])
+
   if (!category) return null
+  const visible = showing && up
+
   return (
     <div
       aria-hidden="true"
       className="pointer-events-none absolute inset-0 grid place-items-center px-5"
       style={{
-        opacity: showing ? 1 : 0,
-        transform: showing ? 'scale(1)' : 'scale(0.94)',
-        transition: 'opacity .24s var(--ease), transform .4s var(--ease-spring)',
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'scale(1)' : 'scale(0.93)',
+        transition: `opacity ${visible ? REVEAL_IN_MS : REVEAL_OUT_MS}ms var(--ease), transform ${
+          visible ? REVEAL_IN_MS + 120 : REVEAL_OUT_MS
+        }ms var(--ease-spring)`,
       }}
     >
       <div className="rounded-r4 bg-raised px-5 py-4 text-center" style={{ boxShadow: 'var(--e4)' }}>
@@ -68,6 +100,24 @@ function CategoryPlate({ category, showing }) {
         <p className="mt-1.5 text-balance font-serif text-xl leading-tight font-semibold text-ink">
           {category.name}
         </p>
+        {/* Something to actually read during the beat, rather than a second of
+            nothing to do. */}
+        <p className="mt-1.5 text-xs text-ink-2">
+          {unread === 1 ? 'one passage left in it' : `${unread} passages left in it`}
+        </p>
+        {animated && (
+          <span className="mx-auto mt-3 block h-0.5 w-16 overflow-hidden rounded-full bg-inset">
+            <span
+              className="block h-full origin-right rounded-full bg-accent"
+              style={{
+                transform: `scaleX(${visible ? 0 : 1})`,
+                transition: visible
+                  ? `transform ${REVEAL_HOLD_MS}ms linear ${REVEAL_IN_MS}ms`
+                  : 'none',
+              }}
+            />
+          </span>
+        )}
       </div>
     </div>
   )
@@ -86,6 +136,7 @@ export default function WheelView({ completedIds, onLanded, onAnnounce, exhauste
   // The category the first wheel landed on, held in state rather than read off
   // planRef, because this one is drawn on screen and a ref does not re-render.
   const [reveal, setReveal] = useState(null)
+  const [revealUnread, setRevealUnread] = useState(0)
   const planRef = useRef(null)
   const timers = useRef([])
   // Each stage advances exactly once, whether it was the transition ending or
@@ -141,6 +192,7 @@ export default function WheelView({ completedIds, onLanded, onAnnounce, exhauste
         // passages and there is nothing left on screen that says where they
         // came from.
         setReveal(plan.category)
+        setRevealUnread(plan.entries.length)
         onAnnounce?.(`${plan.category.name}. Now choosing the passage.`)
         // Swap the faces behind the plate, then carry straight on from where
         // the wheel already is. Resetting to zero would make the disc jump back
@@ -155,7 +207,7 @@ export default function WheelView({ completedIds, onLanded, onAnnounce, exhauste
               current,
               targetIndex: plan.entryIndex,
               count: plan.entries.length,
-              turns: 6,
+              turns: 5,
               jitter: randomJitter(),
             }),
           )
@@ -196,6 +248,7 @@ export default function WheelView({ completedIds, onLanded, onAnnounce, exhauste
       setDuration(0)
       setRotation(computeFinalRotation({ targetIndex: plan.entryIndex, count: plan.entries.length, turns: 0 }))
       setReveal(plan.category)
+      setRevealUnread(plan.entries.length)
       setPhase('handover')
       onAnnounce?.(`${plan.category.name}. Now choosing the passage.`)
       after(REDUCED_REVEAL_MS, () => {
@@ -252,7 +305,12 @@ export default function WheelView({ completedIds, onLanded, onAnnounce, exhauste
             }
           />
         </div>
-        <CategoryPlate category={reveal} showing={phase === 'handover'} />
+        <CategoryPlate
+          category={reveal}
+          showing={phase === 'handover'}
+          unread={revealUnread}
+          animated={!reduced}
+        />
       </div>
 
       <div className="space-y-3">
