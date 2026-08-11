@@ -139,3 +139,32 @@ export function relativeLuminance(hex) {
 
 /** Readable ink for a given background, chosen by contrast rather than by taste. */
 export const inkOn = (hex) => (relativeLuminance(hex) > 0.42 ? '#14161a' : '#F6F2EA')
+
+/** WCAG contrast ratio between two hex colours. */
+export function contrastRatio(a, b) {
+  const [hi, lo] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x)
+  return (hi + 0.05) / (lo + 0.05)
+}
+
+const tintCache = new Map()
+
+/**
+ * The category's own colour, lightened just enough to be legible as text on a
+ * dark ground. Several catalog colours (the deep violets especially) sit around
+ * 2.5:1 against the app background, which is unreadable at 11px — so we walk
+ * the colour toward white until it clears the threshold rather than replacing
+ * it with a palette of our own. The hue stays; only the lightness moves.
+ */
+export function readableInk(color, bg = '#14161a', min = 4.5) {
+  const key = `${color}|${bg}|${min}`
+  const hit = tintCache.get(key)
+  if (hit) return hit
+
+  let out = color
+  for (let step = 0; step <= 20; step++) {
+    out = step === 0 ? color : shade(color, step * 0.05)
+    if (contrastRatio(out, bg) >= min) break
+  }
+  tintCache.set(key, out)
+  return out
+}

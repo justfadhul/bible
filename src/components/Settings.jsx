@@ -81,9 +81,9 @@ export default function Settings({ state, onImport, onReset, onReaderName }) {
           role="status"
           className={`rounded-lg border p-3 text-sm leading-relaxed ${
             status.kind === 'error'
-              ? 'border-red-900/60 bg-red-950/30 text-red-200'
+              ? 'border-danger-line bg-danger-bg text-danger'
               : status.kind === 'warn'
-                ? 'border-amber-900/60 bg-amber-950/30 text-amber-200'
+                ? 'border-warn-line bg-warn-bg text-warn'
                 : 'border-line bg-surface text-ink-2'
           }`}
         >
@@ -128,10 +128,12 @@ export default function Settings({ state, onImport, onReset, onReaderName }) {
             Import JSON
           </button>
         </div>
+        {/* Driven by the Import button above; hidden rather than styled. */}
         <input
           ref={fileRef}
           type="file"
           accept="application/json,.json"
+          aria-label="Choose a Spin Catalog export file to import"
           onChange={(e) => importJSON(e.target.files?.[0])}
           className="sr-only-live"
           tabIndex={-1}
@@ -146,7 +148,7 @@ export default function Settings({ state, onImport, onReset, onReaderName }) {
           <button
             type="button"
             onClick={() => setPendingReset(true)}
-            className="w-full min-h-12 rounded-lg border border-red-900/70 text-sm text-red-300 hover:bg-red-950/30 transition-colors"
+            className="w-full min-h-12 rounded-lg border border-danger-line text-sm text-danger hover:bg-danger-bg transition-colors"
           >
             Reset everything
           </button>
@@ -179,8 +181,8 @@ export default function Settings({ state, onImport, onReset, onReaderName }) {
                 type="button"
                 onClick={doReset}
                 disabled={confirmText !== 'RESET'}
-                className="flex-1 min-h-12 rounded-lg border border-red-900/70 text-sm text-red-300
-                           hover:bg-red-950/30 disabled:opacity-35 disabled:cursor-not-allowed transition-colors"
+                className="flex-1 min-h-12 rounded-lg border border-danger-line text-sm text-danger
+                           hover:bg-danger-bg disabled:opacity-35 disabled:cursor-not-allowed transition-colors"
               >
                 Reset
               </button>

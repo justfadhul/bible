@@ -10,3 +10,5 @@ dist/
 .seed.mjs
 .e2e.mjs
 .crop.mjs
+.a11y.mjs
+.chk.mjs

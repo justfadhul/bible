@@ -10,7 +10,7 @@ import { CATEGORIES, TOTAL, getEntry, getCategory } from '../lib/catalog.js'
 import { formatShortDate } from '../lib/date.js'
 import { archiveStats } from '../lib/stats.js'
 import { byNewest } from '../lib/state.js'
-import { inkOn } from '../lib/wheel.js'
+import { readableInk } from '../lib/wheel.js'
 
 function Stat({ value, label, sub }) {
   return (
@@ -81,7 +81,7 @@ function Row({ row, readerNames }) {
           </div>
           <p className="font-serif text-sm text-ink-2 mt-0.5">{entry.reference}</p>
           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-            <span className="text-2xs" style={{ color: category?.color }}>
+            <span className="text-2xs" style={{ color: readableInk(category?.color ?? '#948c7d') }}>
               {category?.name}
             </span>
             <span className="text-2xs text-ink-4">· {entry.size}</span>

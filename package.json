@@ -10,9 +10,10 @@
     "preview": "vite preview",
     "validate": "node scripts/validate-catalog.mjs",
     "simulate": "node scripts/simulate-spins.mjs",
+    "no-dupes": "node scripts/check-no-duplication.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "npm run validate && npm run test && npm run simulate && npm run build"
+    "check": "npm run validate && npm run no-dupes && npm run test && npm run simulate && npm run build"
   },
   "dependencies": {
     "react": "^19.2.8",

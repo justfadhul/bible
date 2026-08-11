@@ -16,12 +16,27 @@
   --color-line: #2f3540;
   --color-line-soft: #262b34;
 
-  --color-ink: #ece6da;
-  --color-ink-2: #b3ab9c;
-  --color-ink-3: #7d7768;
-  --color-ink-4: #565247;
+  /*
+   * The ink ramp is deliberately tight. Every one of these carries real text,
+   * so each must clear WCAG AA (4.5:1) against the darkest surface it sits on
+   * — measured, not eyeballed. Hierarchy therefore comes from size and weight
+   * rather than from fading text out until it stops being readable.
+   */
+  --color-ink: #ece6da; /* 15.2:1 on surface */
+  --color-ink-2: #c8c0b0; /* 10.3:1 */
+  --color-ink-3: #a9a192; /*  6.2:1 */
+  --color-ink-4: #948c7d; /*  4.8:1 */
 
   --color-accent: #d9c9a3;
+
+  /* Destructive and cautionary states, in the same warm register as the rest
+     rather than borrowed from a stock palette. Both clear AA on the ground. */
+  --color-danger: #e8908c; /* 7.6:1 */
+  --color-danger-line: #7a2f2f;
+  --color-danger-bg: #2a1517;
+  --color-warn: #e0c07a; /* 10.3:1 */
+  --color-warn-line: #6b5426;
+  --color-warn-bg: #241e11;
 
   --font-serif: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Palatino, Georgia,
     'Times New Roman', serif;

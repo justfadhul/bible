@@ -153,7 +153,7 @@ export default function App() {
           <button
             type="button"
             onClick={() => setView('wheel')}
-            className="font-serif text-base text-ink tracking-tight text-left"
+            className="font-serif text-base text-ink tracking-tight text-left min-h-11 flex items-center"
           >
             The Spin Catalog
           </button>
@@ -192,13 +192,13 @@ export default function App() {
 
       <main ref={mainRef} className="flex-1 mx-auto w-full max-w-lg px-4 py-6 pb-16">
         {DEV && (
-          <p className="mb-4 rounded-lg border border-amber-900/60 bg-amber-950/30 p-2.5 text-2xs text-amber-200">
+          <p className="mb-4 rounded-lg border border-warn-line bg-warn-bg p-2.5 text-2xs text-warn">
             Dev mode — the once-a-day lock is off, so you can spin repeatedly. Remove <code>?dev=1</code> to restore it.
           </p>
         )}
 
         {catalogProblems.length > 0 && (
-          <p className="mb-4 rounded-lg border border-amber-900/60 bg-amber-950/30 p-2.5 text-2xs text-amber-200">
+          <p className="mb-4 rounded-lg border border-warn-line bg-warn-bg p-2.5 text-2xs text-warn">
             The catalog has {catalogProblems.length} problem(s); affected entries were skipped.
           </p>
         )}
