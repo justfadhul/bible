@@ -178,6 +178,22 @@ and nobody can overwrite anyone else's.
 Removing is only ever offered for a leftover local reader, and takes their ticks with it —
 somebody with an account leaves by leaving the group, on their own device.
 
+## Three views, three jobs
+
+**Wheel** is the spin, and once the day is spent it becomes the answer to the
+questions you would open the app to ask: how long until the next one, what came
+up, has the other reader got to it, how far through are we. It used to render
+today's reading in full, which made it the same page as the Today tab — two
+tabs, one screen, and no reason to have pressed either.
+
+The countdown ticks per second only inside the last hour; before that the
+minutes digit is all that changes, and a per-second re-render for seven hours
+is a battery cost with nothing to show for it.
+
+**Today** is the reading itself — text, question, ticks, notes.
+
+**Finished** is the archive and the shared progress table.
+
 ## The passage text
 
 The wheel used to hand you a reference and expect you to go and find it. That

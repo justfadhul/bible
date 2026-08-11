@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import WheelView from './components/WheelView.jsx'
 import TodayCard from './components/TodayCard.jsx'
 import FinishedSide from './components/FinishedSide.jsx'
+import NextSpin from './components/NextSpin.jsx'
 import Settings from './components/Settings.jsx'
 import AuthPage from './components/AuthPage.jsx'
 import { Alert, Brandmark, Button, Card, Icon, ICONS, Spinner, SyncDot, Tabs } from './components/ui.jsx'
@@ -464,10 +465,15 @@ export default function App() {
               exhausted={exhausted}
             />
           ) : (
-            <div className="space-y-4">
-              <p className="eyebrow">Already spun today</p>
-              {card}
-            </div>
+            // Not the reading itself: that is the Today tab, and rendering it
+            // here made the two tabs the same page.
+            <NextSpin
+              state={state}
+              completedIds={completedIds}
+              todayRow={todayRow}
+              onOpenToday={() => setView('today')}
+              onOpenArchive={() => setView('finished')}
+            />
           ))}
 
         {view === 'today' &&

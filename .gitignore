@@ -36,3 +36,5 @@ dist/
 
 .bible.mjs
 .dbg3.mjs
+.nextspin.mjs
+.dbg4.mjs
