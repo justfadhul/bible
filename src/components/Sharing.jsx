@@ -191,6 +191,17 @@ export default function Sharing({ sync }) {
           </div>
         )}
 
+        {/* Distinct from a sync error: the history is syncing fine, and only
+            the roster is stuck — which shows up as a person who joined and
+            never appeared, with nothing on screen to explain it. */}
+        {sync.rosterError && (
+          <div className="mt-3">
+            <Alert tone="quiet" icon={ICONS.warning}>
+              {sync.rosterError}
+            </Alert>
+          </div>
+        )}
+
         <div className="mt-4 flex gap-2.5">
           <Button
             variant="secondary"

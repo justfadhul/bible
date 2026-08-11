@@ -19,6 +19,7 @@ import { nameFromEmail } from './lib/readers.js'
 import { APP_NAME } from './lib/brand.js'
 import * as haptics from './lib/haptics.js'
 import { warm as warmPassages } from './lib/passages.js'
+import { getTranslation, setTranslation, clearCache as clearPassageCache } from './lib/bibleApi.js'
 import {
   completedIds as idsOf,
   isExhausted,
@@ -81,6 +82,7 @@ export default function App() {
   const [now, setNow] = useState(() => Date.now())
   const [dev, setDev] = useState(DEV_PARAM)
   const [theme, setThemeRaw] = useState(getTheme)
+  const [translation, setTranslationRaw] = useState(getTranslation)
   const [skippedAuth, setSkippedAuth] = useState(() => {
     try {
       return localStorage.getItem(WELCOMED_KEY) === '1'
@@ -223,6 +225,7 @@ export default function App() {
       dateISO={todayRow.dateISO}
       readers={state.readers}
       meId={myReaderId}
+      translationId={translation}
       onNotes={(notes) => commit(setMyNote(state, todayEntry.id, myReaderId, notes))}
       onReadBy={(readerId, value) => commit(setReadBy(state, todayEntry.id, readerId, value))}
       undo={undoInfo}
@@ -279,6 +282,14 @@ export default function App() {
       if (v) haptics.toggle()
     },
     test: haptics.test,
+  }
+
+  const translationPrefs = {
+    value: translation,
+    set: (id) => {
+      setTranslationRaw(id)
+      setTranslation(id)
+    },
   }
 
   const isDark = resolvedTheme(theme) === 'dark'
@@ -420,6 +431,7 @@ export default function App() {
             }}
             onReset={() => {
               clearState()
+              clearPassageCache()
               setStateRaw(emptyState())
               setJustSpunId(null)
               setUndo(null)
@@ -431,6 +443,7 @@ export default function App() {
             }}
             onRemoveReader={(id) => commit(removeReader(state, id))}
             haptics={hapticsPrefs}
+            translation={translationPrefs}
           />
         )}
 
@@ -464,6 +477,7 @@ export default function App() {
         {view === 'finished' && (
           <FinishedSide
             state={state}
+            translationId={translation}
             pulling={sync.status === 'syncing' || sync.status === 'connecting'}
             onReadBy={(entryId, readerId, value) => commit(setReadBy(state, entryId, readerId, value))}
           />

@@ -13,6 +13,7 @@ import Sharing from './Sharing.jsx'
 import { normalizeState } from '../lib/storage.js'
 import { TOTAL, meta } from '../lib/catalog.js'
 import { APP_NAME, WEB } from '../lib/brand.js'
+import { TRANSLATIONS, findTranslation } from '../lib/bibleApi.js'
 
 function Group({ header, footer, children, className = '' }) {
   return (
@@ -87,7 +88,51 @@ function Haptics({ hx }) {
   )
 }
 
-export default function Settings({ state, sync, theme, onTheme, onImport, onReset, onUpdateReader, onRemoveReader, haptics: hx }) {
+/**
+ * Which translation to read.
+ *
+ * The World English Bible is first and is the default because it is the one
+ * that is actually in the app: instant, offline, and carrying the paragraph
+ * and poetry structure that makes a psalm read like a psalm. The others come
+ * from bible-api.com, which serves only public-domain texts and asks for no
+ * key — but hands back a flat list of verses with no paragraphing at all.
+ *
+ * That difference is stated rather than hidden. Offering five options as
+ * equals, when one of them works offline and reads better, would be the
+ * picker misleading somebody about their own choice.
+ */
+function Translation({ pref }) {
+  if (!pref) return null
+  const current = findTranslation(pref.value)
+  return (
+    <Group
+      header="Translation"
+      footer={
+        current.bundled
+          ? `${current.note} It is stored in the app, so it opens instantly and works with no connection.`
+          : `${current.note} Fetched from bible-api.com the first time you open each passage, then kept on this device. It arrives without paragraph breaks, and if it cannot be reached you get the ${WEB.short} instead.`
+      }
+    >
+      <div className="sunken rounded-r3">
+        <select
+          aria-label="Translation"
+          value={current.id}
+          onChange={(e) => pref.set(e.target.value)}
+          className="min-h-12 w-full rounded-r3 bg-transparent px-3.5 text-[0.9375rem] focus:outline-none"
+        >
+          {TRANSLATIONS.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}
+              {t.bundled ? ' — in the app' : ''}
+            </option>
+          ))}
+        </select>
+      </div>
+    </Group>
+  )
+}
+
+export default function Settings({ state, sync, theme, onTheme, onImport, onReset, onUpdateReader, onRemoveReader, haptics: hx, translation }) {
   const fileRef = useRef(null)
   const [status, setStatus] = useState(null)
   const [pendingReset, setPendingReset] = useState(false)
@@ -164,6 +209,8 @@ export default function Settings({ state, sync, theme, onTheme, onImport, onRese
           ]}
         />
       </Group>
+
+      <Translation pref={translation} />
 
       <Haptics hx={hx} />
 

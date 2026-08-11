@@ -69,6 +69,12 @@ if (csp && !/connect-src[^;]*supabase\.co/.test(csp.value)) {
 if (csp && !/connect-src[^;]*wss:\/\/\*\.supabase\.co/.test(csp.value)) {
   problems.push('the CSP blocks realtime — connect-src must allow wss://*.supabase.co')
 }
+// Other translations are fetched from here. Without it the picker silently
+// falls back to the bundled text on every selection, which looks like the
+// setting not working.
+if (csp && !/connect-src[^;]*bible-api\.com/.test(csp.value)) {
+  problems.push('the CSP blocks the translation API — connect-src must allow https://bible-api.com')
+}
 
 if (problems.length) {
   console.error(`\n✗ vercel.json has ${problems.length} problem(s):`)

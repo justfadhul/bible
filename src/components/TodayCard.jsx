@@ -30,6 +30,7 @@ export default function TodayCard({
   dateISO,
   readers,
   meId,
+  translationId,
   onNotes,
   onReadBy,
   undo,
@@ -144,7 +145,12 @@ export default function TodayCard({
       {/* The passage itself, before the question about it — you cannot discuss
           what you have not read, and the old order sent people out of the app
           to find the text and back again to find the question. */}
-      <Passage entryId={entry.id} reference={entry.reference} className={`${r} reveal-delay-1`} />
+      <Passage
+        entryId={entry.id}
+        reference={entry.reference}
+        translationId={translationId}
+        className={`${r} reveal-delay-1`}
+      />
 
       <Card className={`px-5 py-4 ${r} reveal-delay-2`}>
         <p className="eyebrow">To discuss</p>

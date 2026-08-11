@@ -198,10 +198,26 @@ after mount — by the time a spin lands, it is almost always already there. The
 filename is content-hashed and served immutable for a year, so that fetch
 happens once ever.
 
-Fetching from a Bible API was the obvious alternative and the wrong one: the
-app works offline, its CSP admits exactly one host, and a network round trip
-between somebody and the passage they just spun for is precisely the wait worth
-removing.
+### Other translations
+
+Settings → Translation. The bundled WEB is the default and is listed as
+"in the app", because it is the only one that opens instantly, works offline,
+and keeps its structure. The rest — KJV, WEBBE, BBE, OEB — come from
+[bible-api.com](https://bible-api.com), which serves only public-domain texts
+and needs no key.
+
+The trade is stated in the picker rather than hidden: the API returns a flat
+list of verses with no paragraphing and no poetry, so a fetched translation is
+one continuous block per chapter. Every fetch is cached in its own
+`localStorage` key (bounded, and separate from the reading history so a full
+quota can never cost somebody a note), one request per passage however many
+things ask at once, and **any failure at all falls back to the bundled text
+with a line saying so.** You always get the passage.
+
+`connect-src` in `vercel.json` admits `https://bible-api.com`, and
+`check-deploy` fails if that is ever removed — without it the picker would
+silently fall back on every selection, which looks like the setting not
+working.
 
 **Structure, not just verses.** The source carries the paragraph and poetry
 markup, so a narrative reads as prose with quiet superscript verse numbers, and

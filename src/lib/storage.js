@@ -180,16 +180,12 @@ export function migrateV2(input) {
   const kept = readers.filter(
     (r) => r.userId || used.has(r.id) || chosenName(r.name) || cleanAvatar(r.avatarUrl),
   )
-  const survivors = (kept.length ? kept : readers.slice(0, 1)).map((r, i) => {
-    if (r.userId) return r
-    // A generated name is not a name; drop it so the field reads as empty and
-    // the first person to sign in here can claim the row cleanly.
-    const name = chosenName(r.name)
-    // Exactly one reader may be nameless and account-less, and it means "you
-    // on this device". A leftover kept only for its ticks would be
-    // indistinguishable from that, so it is labelled for what it is.
-    return { ...r, name: name || (i === 0 ? '' : 'Reader from before') }
-  })
+  // A generated name is not a name: blanking it lets the first account to sign
+  // in here claim the row cleanly, and lets normalizeState's sweep recognise a
+  // placeholder however many versions later it runs.
+  const survivors = (kept.length ? kept : readers.slice(0, 1)).map((r) =>
+    r.userId ? r : { ...r, name: chosenName(r.name) },
+  )
 
   return {
     version: 3,
@@ -316,11 +312,51 @@ export function normalizeState(input) {
   const undated = completed.filter((r) => r.dateISO === null).length
   if (undated) problems.push(`${undated} completed row(s) had an unreadable date`)
 
+  /**
+   * Sweep out placeholders, on every read rather than only during a migration.
+   *
+   * This has to live here and not in migrateV2, and the reason is a bug I
+   * shipped: the first version of that migration read "Reader B" as a name
+   * somebody had chosen, kept it, and wrote the result back as v3. Once the
+   * data had moved on, the rule that would have removed it never ran again,
+   * and people were left looking at a reader who does not exist and never
+   * signed up for anything. A rule that only fires during an upgrade cannot
+   * fix data an earlier upgrade got wrong.
+   *
+   * Narrow, so it can never lose anything: no account, a name v2 generated
+   * rather than one anyone typed, no photo, and no reading ticked by them.
+   * Anything a person actually used stays.
+   */
+  const used = new Set(completed.flatMap((r) => r.readBy))
+  const kept = readers.filter(
+    (r, i) =>
+      r.userId ||
+      used.has(r.id) ||
+      cleanAvatar(r.avatarUrl) ||
+      chosenName(r.name) ||
+      // Never leave a device with nobody on it, and never remove the reader
+      // this device belongs to just because they have not named themselves.
+      (i === 0 && !PLACEHOLDER_NAME.test(clean(r.name))),
+  )
+  const finalReaders = (kept.length ? kept : readers.slice(0, 1)).map((r, i) =>
+    // This device's own reader never keeps a generated name: it should read as
+    // "You", not as somebody called Reader A. A leftover that survived on its
+    // ticks does keep the label, because that is genuinely what it was called
+    // and the roster marks it as an account-less remnant anyway.
+    i === 0 && !r.userId && !chosenName(r.name) ? { ...r, name: '' } : r,
+  )
+  if (finalReaders.length !== readers.length) {
+    problems.push(`removed ${readers.length - finalReaders.length} placeholder reader(s) nobody signed up as`)
+  }
+  const live = new Set(finalReaders.map((r) => r.id))
+
   return {
     state: {
       version: SCHEMA_VERSION,
-      readers,
-      completed,
+      readers: finalReaders,
+      completed: completed.map((r) =>
+        r.readBy.every((id) => live.has(id)) ? r : { ...r, readBy: r.readBy.filter((id) => live.has(id)) },
+      ),
       lastSpinDate: isISODate(src.lastSpinDate) ? src.lastSpinDate : null,
     },
     problems,

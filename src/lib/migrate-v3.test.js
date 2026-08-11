@@ -115,6 +115,65 @@ describe('v2 → v3', () => {
     expect(out.completed[0].readBy).toEqual([])
   })
 
+  it('sweeps a placeholder out of data an earlier migration already kept', () => {
+    // The bug people actually saw. The first version of this migration read
+    // "Reader B" as a chosen name, kept it, and wrote the result back as a
+    // newer version — after which the migration never ran again and the
+    // phantom reader was permanent. The sweep has to happen on every read.
+    const alreadyUpgraded = {
+      version: SCHEMA_VERSION,
+      readers: [
+        { id: 'u1', userId: 'u1', name: 'Fadhul', avatarUrl: null, email: 'f@example.com' },
+        { id: 'b', userId: null, name: 'Reader B', avatarUrl: null, email: null },
+      ],
+      completed: [{ id: 1, dateISO: '2026-03-01', notes: '', notesBy: {}, readBy: ['u1'] }],
+      lastSpinDate: null,
+    }
+    const { state, problems } = normalizeState(alreadyUpgraded)
+    expect(state.readers.map((r) => r.id)).toEqual(['u1'])
+    expect(problems.join(' ')).toMatch(/placeholder/i)
+    expect(state.completed[0].readBy).toEqual(['u1'])
+  })
+
+  it('keeps a placeholder that somebody actually ticked with', () => {
+    const { state } = normalizeState({
+      version: SCHEMA_VERSION,
+      readers: [
+        { id: 'u1', userId: 'u1', name: 'Fadhul' },
+        { id: 'b', userId: null, name: 'Reader B' },
+      ],
+      completed: [{ id: 1, dateISO: '2026-03-01', notesBy: {}, readBy: ['b'] }],
+      lastSpinDate: null,
+    })
+    expect(state.readers.map((r) => r.id)).toEqual(['u1', 'b'])
+  })
+
+  it('leaves a device with nobody on it, never', () => {
+    const { state } = normalizeState({
+      version: SCHEMA_VERSION,
+      readers: [{ id: 'a', userId: null, name: 'Reader A' }],
+      completed: [],
+      lastSpinDate: null,
+    })
+    expect(state.readers).toHaveLength(1)
+    // And the generated name is cleared, so it reads as "You" rather than as
+    // somebody called Reader A.
+    expect(state.readers[0].name).toBe('')
+  })
+
+  it('does not touch a reader who chose a name that merely looks systematic', () => {
+    const { state } = normalizeState({
+      version: SCHEMA_VERSION,
+      readers: [
+        { id: 'u1', userId: 'u1', name: 'Fadhul' },
+        { id: 'x', userId: null, name: 'Reader Bee' },
+      ],
+      completed: [],
+      lastSpinDate: null,
+    })
+    expect(state.readers.map((r) => r.name)).toEqual(['Fadhul', 'Reader Bee'])
+  })
+
   it('does not merge two people who happen to share a tick id', () => {
     // Re-keying must not collapse distinct rows into one another.
     const { state } = normalizeState(

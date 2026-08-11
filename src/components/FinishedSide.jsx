@@ -67,7 +67,7 @@ function CategoryChart({ rows }) {
   )
 }
 
-function Row({ row, readers, ground, last }) {
+function Row({ row, readers, ground, last, translationId }) {
   const entry = getEntry(row.id)
   const [open, setOpen] = useState(false)
   if (!entry) return null
@@ -116,7 +116,7 @@ function Row({ row, readers, ground, last }) {
           <p className="font-serif text-sm leading-relaxed">{entry.question}</p>
           {/* Re-reading is the point of an archive, so the text is here too
               rather than only on the day it came up. */}
-          <Passage entryId={entry.id} reference={entry.reference} level={2} />
+          <Passage entryId={entry.id} reference={entry.reference} translationId={translationId} level={2} />
           {notes.map(({ reader, index, text }) => (
             <div key={reader.id}>
               <div className="mb-1.5 flex items-center gap-2">
@@ -141,7 +141,7 @@ function Row({ row, readers, ground, last }) {
   )
 }
 
-export default function FinishedSide({ state, onReadBy, pulling = false }) {
+export default function FinishedSide({ state, onReadBy, pulling = false, translationId }) {
   const [query, setQuery] = useState('')
   const [lens, setLens] = useState('readers')
   const [category, setCategory] = useState('all')
@@ -291,6 +291,7 @@ export default function FinishedSide({ state, onReadBy, pulling = false }) {
               row={row}
               readers={state.readers}
               ground={ground}
+              translationId={translationId}
               last={i === filtered.length - 1}
             />
           ))}

@@ -242,10 +242,14 @@ export async function fetchRemoteState(pair) {
   if (error) throw error
 
   let readers = null
+  let rosterError = null
   try {
     readers = await fetchReaders()
-  } catch {
-    // Reported by the caller through the sync status; not worth losing a pull.
+  } catch (e) {
+    // Never lose a pull over the roster — but do not swallow the reason
+    // either. Without migration 0002 this fails every time, and the symptom
+    // is somebody who joined the group simply never appearing.
+    rosterError = e?.message ?? String(e)
   }
 
   const { state } = normalizeState({
@@ -261,6 +265,7 @@ export async function fetchRemoteState(pair) {
     // Tells the merge this roster is the database's answer, not another
     // device's opinion — so it replaces rather than unions.
     fromServer: Boolean(readers),
+    rosterError,
     completed: (data ?? []).map(rowToReading),
   }
 }

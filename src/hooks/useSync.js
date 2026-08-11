@@ -55,6 +55,8 @@ export function useSync({ state, onMerged }) {
    * so the news that it worked cannot live in that form's own state.
    */
   const [notice, setNotice] = useState(null)
+  /** Set when pair_readers() could not answer — almost always a missing 0002. */
+  const [rosterError, setRosterError] = useState(null)
 
   // The hook reads the newest state without re-subscribing on every keystroke.
   const stateRef = useRef(state)
@@ -110,6 +112,7 @@ export function useSync({ state, onMerged }) {
       try {
         setStatus('syncing')
         const remote = await fetchRemoteState(p)
+        setRosterError(remote.rosterError ? describe(new Error(remote.rosterError)) : null)
         // On the very first sync after pairing, this device's reader names are
         // the ones the user just typed; after that the shared copy wins.
         const merged = mergeStates(stateRef.current, remote, { preferRemoteNames: !firstSync.current })
@@ -225,7 +228,7 @@ export function useSync({ state, onMerged }) {
     },
   }
 
-  return { enabled: remoteConfigured, ready, session, pair, status, error, notice, lastSyncedAt, push, ...actions }
+  return { enabled: remoteConfigured, ready, session, pair, status, error, notice, rosterError, lastSyncedAt, push, ...actions }
 }
 
 function describe(e) {
@@ -233,8 +236,8 @@ function describe(e) {
   if (/Could not find the table/i.test(msg)) {
     return 'The database tables are missing — run supabase/migrations/0001_shared_history.sql in the SQL editor.'
   }
-  if (/pair_readers|profiles|notes_by/i.test(msg) && /could not find|does not exist|schema cache/i.test(msg)) {
-    return 'The readers table is missing — run supabase/migrations/0002_real_readers.sql in the SQL editor.'
+  if (/pair_readers|profiles|notes_by/i.test(msg)) {
+    return 'The reader list cannot be read from the database — run supabase/migrations/0002_real_readers.sql in the SQL editor, then Sync now.'
   }
   if (/Failed to fetch|NetworkError|fetch failed/i.test(msg)) {
     return 'Cannot reach Supabase. Your history is still saved on this device.'

@@ -17,7 +17,8 @@
  */
 import { useEffect, useState } from 'react'
 import { Card, Icon, ICONS, Skeleton } from './ui.jsx'
-import { getPassage, peek, shape, TRANSLATION } from '../lib/passages.js'
+import { getPassage, peek, shape } from '../lib/passages.js'
+import { fetchPassage, findTranslation, DEFAULT_TRANSLATION } from '../lib/bibleApi.js'
 
 /**
  * A verse number: there for anyone looking for one, out of the way otherwise.
@@ -95,29 +96,62 @@ function Blocks({ blocks }) {
   )
 }
 
-export default function Passage({ entryId, reference, className = '', level = 3 }) {
-  // Already in memory on the second and every later render, so the common case
-  // paints immediately and never shows a loading state at all.
-  const [passage, setPassage] = useState(() => shape(peek(entryId)))
+export default function Passage({
+  entryId,
+  reference,
+  className = '',
+  level = 3,
+  translationId = DEFAULT_TRANSLATION,
+}) {
+  const wanted = findTranslation(translationId)
+  // The bundled copy is already in memory on the second and every later
+  // render, so the common case paints immediately with no loading state.
+  const [passage, setPassage] = useState(() =>
+    wanted.bundled ? shape(peek(entryId)) : null,
+  )
+  const [shown, setShown] = useState(wanted)
+  const [fellBack, setFellBack] = useState(false)
   const [failed, setFailed] = useState(false)
 
   useEffect(() => {
     let alive = true
-    const ready = shape(peek(entryId))
+    const bundled = () => getPassage(entryId)
+
+    const ready = wanted.bundled ? shape(peek(entryId)) : null
     if (ready) {
       setPassage(ready)
+      setShown(wanted)
+      setFellBack(false)
       setFailed(false)
       return
     }
+
     setPassage(null)
     setFailed(false)
-    getPassage(entryId)
-      .then((p) => alive && setPassage(p))
+    setFellBack(false)
+
+    const work = wanted.bundled
+      ? bundled().then((p) => ({ p, t: wanted, fell: false }))
+      : fetchPassage(reference, wanted.id)
+          .then((r) => ({ p: { blocks: r.blocks, omitted: r.omitted }, t: r.translation, fell: false }))
+          // A translation you cannot reach is not a reason to show nothing:
+          // the bundled text is always there, and saying which one you are
+          // looking at is enough.
+          .catch(() => bundled().then((p) => ({ p, t: findTranslation(DEFAULT_TRANSLATION), fell: true })))
+
+    work
+      .then(({ p, t, fell }) => {
+        if (!alive) return
+        setPassage(p)
+        setShown(t)
+        setFellBack(fell)
+      })
       .catch(() => alive && setFailed(true))
+
     return () => {
       alive = false
     }
-  }, [entryId])
+  }, [entryId, reference, wanted.id, wanted.bundled])
 
   if (failed) {
     return (
@@ -148,10 +182,20 @@ export default function Passage({ entryId, reference, className = '', level = 3 
     <Card as="section" level={level} className={`px-5 py-5 ${className}`} aria-label={`${reference}, full text`}>
       <div className="mb-3.5 flex items-baseline justify-between gap-3">
         <p className="eyebrow">{reference}</p>
-        <p className="text-2xs text-ink-2">{TRANSLATION.short}</p>
+        <p className="text-2xs text-ink-2">{shown.short}</p>
       </div>
 
       <Blocks blocks={passage.blocks} />
+
+      {fellBack && (
+        <p className="mt-4 flex items-start gap-2 text-2xs leading-relaxed text-ink-2">
+          <Icon path={ICONS.info} size={14} className="mt-px shrink-0" />
+          <span>
+            The {wanted.name} could not be fetched, so this is the {shown.name} — the copy that
+            lives in the app. Try again when you have a connection.
+          </span>
+        </p>
+      )}
 
       {/* A gap in the numbering with no explanation reads as a bug in the app
           rather than as a fact about the manuscripts. */}
@@ -163,7 +207,7 @@ export default function Passage({ entryId, reference, className = '', level = 3 
               ? `Verse ${passage.omitted[0]} is`
               : `Verses ${passage.omitted.join(' and ')} are`}{' '}
             not in this translation — {passage.omitted.length === 1 ? 'it is' : 'they are'} in the
-            King James numbering but not in the manuscripts the {TRANSLATION.name} follows.
+            King James numbering but not in the manuscripts the {shown.name} follows.
           </span>
         </p>
       )}
