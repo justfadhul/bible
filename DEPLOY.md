@@ -101,7 +101,7 @@ to keep in step, because nothing Manna sends is a link.
 | rewrite everything except `assets/`, `favicon`, `manifest`, `robots` → `/index.html` | Single-page app. A refresh or a deep link would otherwise 404. |
 | `assets/*` immutable for a year | The filenames are content-hashed, so they can never go stale. |
 | `index.html` `must-revalidate` | Otherwise a deploy strands people on the previous bundle. |
-| CSP `connect-src` limited to `*.supabase.co` plus `wss:` | The app talks to exactly one host. Realtime needs the websocket scheme spelled out separately. |
+| CSP `connect-src` allows `*.supabase.co`, `wss:` and `bible-api.com` | Supabase for the shared history, its websocket scheme for realtime, and bible-api.com for the passage text. Remove the last one and every passage fails to load. |
 | CSP `img-src` allows `data:` and `blob:` | Locally-chosen avatars before upload. |
 | `nosniff`, `SAMEORIGIN`, `strict-origin-when-cross-origin` | Ordinary hardening. |
 

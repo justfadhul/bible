@@ -10,11 +10,13 @@ import {
 } from './bibleApi.js'
 
 /**
- * The API is a network dependency in an app that otherwise has none for
- * reading, so what matters is not the happy path — it is that every way it can
- * fail ends with the reader looking at the passage anyway. These stub `fetch`
- * rather than calling bible-api.com, which keeps the suite offline and lets
- * the failures be produced on purpose.
+ * This is now the only source of passage text, so what matters is not the
+ * happy path — it is that every way it can fail is a clean rejection the UI
+ * can turn into a message and a retry, and that the cache is doing its job,
+ * because the cache is the only reason yesterday's reading opens on a train.
+ *
+ * These stub `fetch` rather than calling bible-api.com: it keeps the suite
+ * offline, and it lets the failures be produced on purpose.
  */
 
 const store = new Map()
@@ -36,8 +38,7 @@ const ok = (verses) => ({
 const verse = (chapter, v, text) => ({ chapter, verse: v, text })
 
 describe('the translation list', () => {
-  it('leads with the one that is actually in the app', () => {
-    expect(TRANSLATIONS[0].bundled).toBe(true)
+  it('leads with the default', () => {
     expect(TRANSLATIONS[0].id).toBe(DEFAULT_TRANSLATION)
   })
 
@@ -79,11 +80,41 @@ describe('the preference', () => {
 })
 
 describe('fetching', () => {
-  it('never fetches the bundled translation — the app already has it', async () => {
-    const fetchSpy = vi.fn()
+  it('fetches the default translation like any other — nothing is built in', async () => {
+    const fetchSpy = vi.fn(async () => ok([verse(6, 8, 'text')]))
     vi.stubGlobal('fetch', fetchSpy)
-    await expect(fetchPassage('Micah 6:8', DEFAULT_TRANSLATION)).rejects.toThrow()
-    expect(fetchSpy).not.toHaveBeenCalled()
+    const { blocks } = await fetchPassage('Micah 6:8', DEFAULT_TRANSLATION)
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    expect(blocks[0].v[0][2]).toBe('text')
+  })
+
+  it('makes one request when several things ask at once', async () => {
+    // Two components can render the same reading, and React re-runs effects.
+    // Without this every one of them would miss the cache and go out.
+    let resolve
+    const fetchSpy = vi.fn(() => new Promise((r) => { resolve = r }))
+    vi.stubGlobal('fetch', fetchSpy)
+    const all = Promise.all([
+      fetchPassage('Micah 6:8', 'kjv'),
+      fetchPassage('Micah 6:8', 'kjv'),
+      fetchPassage('Micah 6:8', 'kjv'),
+    ])
+    resolve(ok([verse(6, 8, 'text')]))
+    const results = await all
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    expect(results.every((r) => r.blocks[0].v[0][2] === 'text')).toBe(true)
+  })
+
+  it('lets a failed passage be retried rather than caching the failure', async () => {
+    let calls = 0
+    vi.stubGlobal('fetch', async () => {
+      calls++
+      if (calls === 1) throw new Error('offline')
+      return ok([verse(6, 8, 'text')])
+    })
+    await expect(fetchPassage('Micah 6:8', 'kjv')).rejects.toThrow()
+    const { blocks } = await fetchPassage('Micah 6:8', 'kjv')
+    expect(blocks[0].v[0][2]).toBe('text')
   })
 
   it('turns a flat verse list into one block per chapter', async () => {

@@ -18,8 +18,12 @@ import { getTheme, saveTheme, applyTheme, resolvedTheme } from './lib/theme.js'
 import { nameFromEmail } from './lib/readers.js'
 import { APP_NAME } from './lib/brand.js'
 import * as haptics from './lib/haptics.js'
-import { warm as warmPassages } from './lib/passages.js'
-import { getTranslation, setTranslation, clearCache as clearPassageCache } from './lib/bibleApi.js'
+import {
+  warm as warmPassage,
+  getTranslation,
+  setTranslation,
+  clearCache as clearPassageCache,
+} from './lib/bibleApi.js'
 import {
   completedIds as idsOf,
   isExhausted,
@@ -102,11 +106,6 @@ export default function App() {
     applyTheme(theme)
   }, [theme])
 
-  // Fetch the passage text during the first idle moment, so that a spin lands
-  // on something already loaded rather than on a spinner.
-  useEffect(() => {
-    warmPassages()
-  }, [])
 
   useEffect(() => {
     const onKey = (e) => {
@@ -174,6 +173,13 @@ export default function App() {
     return rowForDate(state, today)
   }, [state, justSpunId, today])
   const todayEntry = todayRow ? getEntry(todayRow.id) : null
+
+  // Fetch today's passage during the first idle moment, so opening Today shows
+  // the text rather than a placeholder. Cached afterwards, so this is one
+  // request on the day a reading is drawn and none on any day after it.
+  useEffect(() => {
+    if (todayEntry) warmPassage(todayEntry.reference, translation)
+  }, [todayEntry, translation])
 
   // A new day clears the last spin's reveal state.
   useEffect(() => {

@@ -13,11 +13,9 @@
     "no-dupes": "node scripts/check-no-duplication.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "npm run validate && npm run no-dupes && npm run check-passages && npm run check-deploy && npm run test && npm run simulate && npm run build",
+    "check": "npm run validate && npm run no-dupes && npm run check-deploy && npm run test && npm run simulate && npm run build",
     "build:single": "vite build && node scripts/build-single-file.mjs",
-    "check-deploy": "node scripts/check-vercel-config.mjs",
-    "passages": "node scripts/build-passages.mjs",
-    "check-passages": "node scripts/check-passages.mjs"
+    "check-deploy": "node scripts/check-vercel-config.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.2",

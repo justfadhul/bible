@@ -1,42 +1,47 @@
 /**
- * Other translations, from bible-api.com.
+ * The passage text, from bible-api.com.
  *
- * The World English Bible is bundled and is the default: it is instant, works
- * offline, and keeps the paragraph and poetry structure that makes a psalm
- * read like a psalm. This is for anyone who would rather read something else.
+ * This is the only source. The app used to carry the World English Bible
+ * inside it, which read better — the source had paragraph and poetry markup —
+ * and needed no network at all. That is gone deliberately: the API is what was
+ * asked for, and shipping both left the bundled copy standing in front of it
+ * as a default and a fallback, so the API was never really the source of
+ * anything.
  *
- * WHAT THE API COSTS, HONESTLY
+ * WHAT THAT COSTS, PLAINLY
  *
- *   No key, no account, and only public-domain translations — which is why it
- *   is this one. But it returns a flat list of verses with no paragraphing and
- *   no poetry, so a fetched translation is set as one continuous block per
- *   chapter. That is a real downgrade in readability, and the picker says so
- *   rather than presenting the options as equals.
+ *   Reading a passage for the first time now needs a connection. There is
+ *   nothing behind the API to fall back to, so an unreachable one means a
+ *   message and a retry button where the text should be.
  *
- *   It is also a network dependency in an app that otherwise has none for
- *   reading. So every fetch is cached, and every failure falls back to the
- *   bundled text rather than to an error: you always get the passage.
+ *   The API returns a flat list of verses, so every passage is set as one
+ *   continuous block per chapter. No paragraph breaks, and a psalm reads as
+ *   prose rather than as poetry.
  *
- * The cache is bounded and lives in its own localStorage key, away from the
- * reading history — a full quota must never be able to cost somebody a note
- * they wrote.
+ *   The cache is therefore load-bearing rather than an optimisation: it is the
+ *   only reason yesterday's reading still opens on a train. It is bounded, and
+ *   it lives in its own localStorage key away from the reading history — a
+ *   full quota must never be able to cost somebody a note they wrote.
+ *
+ * No key and no account, which is why it is this API: nothing to keep secret
+ * in a client bundle. Public-domain translations only, for the same reason the
+ * bundled copy was public domain.
  */
-import { WEB } from './brand.js'
 
 const HOST = 'https://bible-api.com'
 const CACHE_KEY = 'spin-catalog:passages'
-const CACHE_LIMIT = 120
+/** Enough for the whole catalog to end up on the device, one reading at a time. */
+const CACHE_LIMIT = 300
 const TIMEOUT_MS = 8000
 
-/**
- * The English public-domain translations bible-api.com serves.
- *
- * `bundled: true` is the copy already in the app — the same translation as the
- * API's `web`, but with its structure intact, so there is no reason ever to
- * fetch it.
- */
+/** The English public-domain translations bible-api.com serves. */
 export const TRANSLATIONS = [
-  { id: 'web', name: WEB.name, short: WEB.short, bundled: true, note: WEB.note },
+  {
+    id: 'web',
+    name: 'World English Bible',
+    short: 'WEB',
+    note: 'A modern-English revision of the American Standard Version. Public domain.',
+  },
   { id: 'kjv', name: 'King James Version', short: 'KJV', note: 'The 1769 text. Public domain.' },
   { id: 'webbe', name: 'World English Bible, British Edition', short: 'WEBBE', note: 'The WEB with British spelling and idiom.' },
   { id: 'bbe', name: 'Bible in Basic English', short: 'BBE', note: 'A 1965 translation using about 1,000 common words.' },
@@ -126,14 +131,13 @@ function toBlocks(verses) {
 }
 
 /**
- * @returns {Promise<{ blocks: Array, omitted: number[], translation: object }>}
- * Throws on anything at all — the caller falls back to the bundled text, which
- * is always present, rather than showing an error where a passage should be.
+ * @returns {Promise<{ blocks: Array, translation: object, cached: boolean }>}
+ * Rejects on anything at all — an HTTP error, an empty answer, a timeout, no
+ * connection. There is nothing behind this, so the caller has to show that
+ * rather than quietly substituting something else.
  */
 export function fetchPassage(reference, translationId) {
   const t = findTranslation(translationId)
-  if (t.bundled) return Promise.reject(new Error('bundled'))
-
   const key = `${t.id}|${reference}`
   const cache = readCache()
   if (cache[key]) return Promise.resolve({ ...cache[key], translation: t, cached: true })
@@ -168,7 +172,19 @@ async function request(reference, t, key) {
   const blocks = toBlocks(Array.isArray(data?.verses) ? data.verses : [])
   if (!blocks.length) throw new Error('bible-api.com returned no verses')
 
-  const value = { blocks, omitted: [] }
+  const value = { blocks }
   writeCache({ ...readCache(), [key]: value })
   return value
+}
+
+/**
+ * Fetch a passage before anyone asks for it — used for today's reading, so the
+ * common case is already on the device by the time the Today tab is opened.
+ * Never throws: this is a head start, not a step.
+ */
+export function warm(reference, translationId) {
+  if (!reference) return
+  const go = () => fetchPassage(reference, translationId).catch(() => {})
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(go, { timeout: 3000 })
+  else setTimeout(go, 800)
 }

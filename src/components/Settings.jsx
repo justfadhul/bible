@@ -12,8 +12,8 @@ import Readers from './Readers.jsx'
 import Sharing from './Sharing.jsx'
 import { normalizeState } from '../lib/storage.js'
 import { TOTAL, meta } from '../lib/catalog.js'
-import { APP_NAME, WEB } from '../lib/brand.js'
-import { TRANSLATIONS, findTranslation } from '../lib/bibleApi.js'
+import { APP_NAME } from '../lib/brand.js'
+import { TRANSLATIONS, findTranslation, DEFAULT_TRANSLATION } from '../lib/bibleApi.js'
 
 function Group({ header, footer, children, className = '' }) {
   return (
@@ -91,15 +91,10 @@ function Haptics({ hx }) {
 /**
  * Which translation to read.
  *
- * The World English Bible is first and is the default because it is the one
- * that is actually in the app: instant, offline, and carrying the paragraph
- * and poetry structure that makes a psalm read like a psalm. The others come
- * from bible-api.com, which serves only public-domain texts and asks for no
- * key — but hands back a flat list of verses with no paragraphing at all.
- *
- * That difference is stated rather than hidden. Offering five options as
- * equals, when one of them works offline and reads better, would be the
- * picker misleading somebody about their own choice.
+ * All five are public domain and all five come from bible-api.com, so this is
+ * a straight choice rather than one option with an asterisk. Changing it takes
+ * effect on the next passage you open; anything already downloaded stays
+ * downloaded, in whatever translation it was fetched as.
  */
 function Translation({ pref }) {
   if (!pref) return null
@@ -107,11 +102,7 @@ function Translation({ pref }) {
   return (
     <Group
       header="Translation"
-      footer={
-        current.bundled
-          ? `${current.note} It is stored in the app, so it opens instantly and works with no connection.`
-          : `${current.note} Fetched from bible-api.com the first time you open each passage, then kept on this device. It arrives without paragraph breaks, and if it cannot be reached you get the ${WEB.short} instead.`
-      }
+      footer={`${current.note} Passages come from bible-api.com — each is fetched the first time you open it and kept on this device afterwards, so a reading you have already opened still works with no connection.`}
     >
       <div className="sunken rounded-r3">
         <select
@@ -123,7 +114,7 @@ function Translation({ pref }) {
           {TRANSLATIONS.map((t) => (
             <option key={t.id} value={t.id}>
               {t.name}
-              {t.bundled ? ' — in the app' : ''}
+              {t.id === DEFAULT_TRANSLATION ? ' — default' : ''}
             </option>
           ))}
         </select>
@@ -300,9 +291,8 @@ export default function Settings({ state, sync, theme, onTheme, onImport, onRese
       <p className="px-1 pb-2 text-xs leading-relaxed text-ink-2">
         {state.completed.length} of {TOTAL} read · catalog v{meta.version}
         <br />
-        {/* People reasonably want to know which translation they are reading,
-            even though this one asks for no credit. */}
-        Scripture from the {WEB.name}. {WEB.note}
+        {/* People reasonably want to know where the words came from. */}
+        Scripture from bible-api.com, in the public domain.
         <br />
         {sync?.pair
           ? 'History is saved on this device and in your shared Supabase project, so either of you can read it from anywhere.'

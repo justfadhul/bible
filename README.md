@@ -178,75 +178,48 @@ and nobody can overwrite anyone else's.
 Removing is only ever offered for a leftover local reader, and takes their ticks with it —
 somebody with an account leaves by leaving the group, on their own device.
 
-## The Bible is in the app
+## The passage text
 
 The wheel used to hand you a reference and expect you to go and find it. That
-sent people out of the app at the exact moment the app had done its job, so the
-text is now on the page — under today's reading and inside every archive row.
+sent people out of the app at the exact moment it had done its job, so the text
+is on the page — under today's reading and inside every archive row.
 
-**Translation: the World English Bible.** Public domain worldwide, with no
-attribution requirement and nobody to ask, which is the only reason a
-translation can live inside a repo at all. It is a modern-English revision of
-the 1901 ASV, so it reads like this century without the KJV's archaisms or the
-BBE's deliberately restricted vocabulary. Credited on screen anyway, because
-people want to know what they are reading.
+It comes from [bible-api.com](https://bible-api.com) and from nowhere else. No
+key, no account, public-domain translations only, which is what makes it usable
+from a client bundle with nothing to keep secret. **Settings → Translation**
+offers WEB, KJV, WEBBE, BBE and OEB.
 
-**Only the 286 passages are bundled**, not a whole Bible: 127,000 words,
-~240KB gzipped, against roughly 10MB for the lot. It is a dynamic import, so
-the app boots without it and the chunk is fetched during the first idle moment
-after mount — by the time a spin lands, it is almost always already there. The
-filename is content-hashed and served immutable for a year, so that fetch
-happens once ever.
+> An earlier version shipped the World English Bible inside the app: 286
+> passages, ~240KB gzipped, with the source edition's paragraph and poetry
+> markup so a psalm read as poetry. That is gone deliberately. Keeping both
+> left the bundled copy standing in front of the API as a default *and* a
+> fallback, so the API was never really the source of anything.
 
-### Other translations
+**What that costs, plainly.** Reading a passage for the first time needs a
+connection, and there is nothing behind the API to fall back to — an
+unreachable one means a message and a **Try again** button where the text
+should be. Silently substituting a different translation would be worse: a
+passage on that screen is something somebody might write down or quote. The API
+also returns a flat verse list, so every passage is one block per chapter with
+no paragraph breaks and no poetry.
 
-Settings → Translation. The bundled WEB is the default and is listed as
-"in the app", because it is the only one that opens instantly, works offline,
-and keeps its structure. The rest — KJV, WEBBE, BBE, OEB — come from
-[bible-api.com](https://bible-api.com), which serves only public-domain texts
-and needs no key.
+**The cache is therefore load-bearing**, not an optimisation — it is the only
+reason yesterday's reading opens on a train. It holds 300 passages in its own
+`localStorage` key, kept apart from the reading history so a full quota can
+never cost somebody a note they wrote; on a quota error it drops itself rather
+than anything else. One request per passage however many things ask at once,
+an 8-second timeout, and a failure is never cached, so **Try again** genuinely
+tries again. Today's reading is fetched during the first idle moment after the
+app mounts, so opening Today usually shows text rather than a placeholder.
 
-The trade is stated in the picker rather than hidden: the API returns a flat
-list of verses with no paragraphing and no poetry, so a fetched translation is
-one continuous block per chapter. Every fetch is cached in its own
-`localStorage` key (bounded, and separate from the reading history so a full
-quota can never cost somebody a note), one request per passage however many
-things ask at once, and **any failure at all falls back to the bundled text
-with a line saying so.** You always get the passage.
+Verse numbers are small, raised and quiet so a passage reads as prose rather
+than a numbered list, and chapter numbers appear only where a passage crosses a
+chapter boundary — which is where a verse 1 following a verse 10 would look
+like a bug.
 
 `connect-src` in `vercel.json` admits `https://bible-api.com`, and
-`check-deploy` fails if that is ever removed — without it the picker would
-silently fall back on every selection, which looks like the setting not
-working.
-
-**Structure, not just verses.** The source carries the paragraph and poetry
-markup, so a narrative reads as prose with quiet superscript verse numbers, and
-a psalm keeps its line breaks with the number only on the line each verse
-starts on — the way it is printed in a Bible. Chapter numbers appear only where
-a passage crosses a chapter boundary, which is where a verse 1 following a
-verse 10 would otherwise look like a bug.
-
-**References are parsed, not pattern-matched by hand.** `src/lib/reference.js`
-resolves the eleven distinct shapes the catalog uses — `Job 2:11-13`,
-`Proverbs 27`, `Numbers 13-14`, `1 John 1:5-2:6`, a bare book name, two ranges
-separated by a comma — into a list of spans. It returns `null` rather than
-guessing, because a half-parsed reference shows the *wrong* verses, which is
-worse than showing none.
-
-**Two verses genuinely are not there.** Acts 8:37 and 15:34 are in the King
-James numbering but not in the manuscripts the WEB follows, so the source
-carries the verse number with nothing in it. The build distinguishes that from
-a real gap (a node exists and is empty, versus no node at all), and the app
-says so on screen rather than leaving an unexplained jump from 36 to 38.
-
-```bash
-node scripts/build-passages.mjs   # needs network; run when the catalog changes
-npm run check-passages            # offline; runs on every check
-```
-
-`check-passages` is the one that matters day to day: it catches a reference
-edited in the catalog whose text was never rebuilt, by comparing the chapters
-and opening verse of every stored passage against what its reference asks for.
+`check-deploy` fails if that is ever removed — without it every passage would
+fail to load.
 
 ## Sharing a history between two devices (Supabase)
 
