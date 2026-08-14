@@ -9,6 +9,7 @@
 import { useRef, useState } from 'react'
 import { Alert, Button, Card, Field, Icon, ICONS, Segmented } from './ui.jsx'
 import Readers from './Readers.jsx'
+import People from './People.jsx'
 import Sharing from './Sharing.jsx'
 import { normalizeState } from '../lib/storage.js'
 import { TOTAL, meta } from '../lib/catalog.js'
@@ -187,6 +188,10 @@ export default function Settings({ state, sync, theme, onTheme, onImport, onRese
       )}
 
       {sync && <Sharing sync={sync} />}
+
+      {/* Directly under the account, because "who else is here" is the first
+          thing worth knowing once you have one. */}
+      {sync && <People sync={sync} />}
 
       <Group header="Appearance" footer="System follows your device's Light or Dark setting, and changes with it.">
         <Segmented

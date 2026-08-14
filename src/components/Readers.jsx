@@ -291,9 +291,9 @@ export default function Readers({ state, sync, onUpdate, onRemove }) {
 
       <p className="mt-2 px-1 text-xs leading-relaxed text-ink-2">
         {!signedIn
-          ? 'Create an account under Sharing and this row becomes yours — then anyone else who signs up and enters your group code appears here as a reader of their own.'
-          : !sync?.pair
-            ? `Start a shared history under Sharing and give out the code. Everyone who signs up and enters it becomes a reader here, up to ${MAX_READERS}.`
+          ? 'Create an account above and this row becomes yours.'
+          : state.readers.filter((r) => r.userId).length < 2
+            ? `This is who reads from this history. Adding someone under People lets you see each other — it does not yet join your reading, so for now this list is just you. Up to ${MAX_READERS} can share a history.`
             : 'Everyone here signed up for themselves. Each of you edits your own name and photo; nobody can edit anybody else’s.'}
       </p>
     </section>

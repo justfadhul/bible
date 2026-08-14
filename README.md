@@ -70,9 +70,9 @@ why. The keyboard route exists for hosts where the URL cannot be edited, such as
 
 ## Views
 
-- **The way in** — shown once on a device that has never been used: sign in for a shared history,
-  or read on this device. It is a door, not a gate; the local route is offered as plainly as the
-  sign-in, and anyone who takes it never sees the screen again. Sharing stays in Settings.
+- **The way in** — shown once on a device that has never been used: create an account, or read on
+  this device. It is a door, not a gate; the local route is offered as plainly as the sign-in, and
+  anyone who takes it never sees the screen again. The account lives in Settings afterwards.
 - **Wheel** — the wheel, the spin button, and progress. Shows today's reading instead once spun.
 - **Today** — topic, reference, category badge, reading-load hint, hook, discussion question, a
   notes box that saves as you type, a checkbox per reader, and a copy button shaped for WhatsApp.
@@ -117,7 +117,7 @@ generalised that to a list anyone could add to. **v3 removes the ability to add 
 
 Readers are not made, they arrive. Every reader is somebody's signed-in account, and `reader.id`
 *is* their auth user id. The way a second person appears is that they sign up on their own phone
-and enter the group's invite code — not that you type them into a list on yours. A typed-in reader
+and you add each other under People — not that you type them into a list on yours. A typed-in reader
 was a row nobody could ever sign in as, whose name only you could correct, and whose ticks meant
 "I think they read it" rather than "they said they did".
 
@@ -237,7 +237,7 @@ like a bug.
 `check-deploy` fails if that is ever removed — without it every passage would
 fail to load.
 
-## Sharing a history between two devices (Supabase)
+## Accounts, people and a shared history (Supabase)
 
 Optional. With no project configured the app is exactly what it was — local,
 private, and fully working — and nothing below is required to use it.
@@ -248,23 +248,41 @@ security. The service-role key bypasses RLS entirely and must never appear in
 `.env`, in the bundle, or in this repo.
 
 **Run the migrations once**, in order: open Supabase → SQL Editor → New query, paste
-`supabase/migrations/0001_shared_history.sql`, Run; then `0002_real_readers.sql`; then
-`0003_everything_saves.sql`. All three are idempotent, so re-running after a change to any of them
-is safe and only replaces what moved. 0002 is what makes the roster come from the database and
-gives each reader their own note; 0003 is what makes signing in enough to be saved. Without either,
-the app still runs, and Settings → Sharing says which one is missing.
+`supabase/migrations/0001_shared_history.sql`, Run; then `0002_real_readers.sql`,
+`0003_everything_saves.sql` and `0004_people_and_friends.sql`. All four are idempotent, so
+re-running after a change to any of them is safe and only replaces what moved. 0002 makes the
+roster come from the database and gives each reader their own note; 0003 makes signing in enough to
+be saved; 0004 replaces the invite code with a list of people. Without any of them the app still
+runs, and Settings says which one is missing.
 
-`npm run check-sql` applies all three to a throwaway Postgres and asserts what they do, so nothing
-here is SQL that has only ever been read. It skips itself where no local Postgres is installed.
+`npm run check-sql` applies all four to a throwaway Postgres, re-runs them on top of themselves and
+asserts what they do — so nothing here is SQL that has only ever been read. It skips itself where no
+local Postgres is installed.
 
-Then, in Settings → Sharing: **each of you creates your own account** with an
-email and a password. That is already enough to be saved — every account gets
-a store of its own, so nothing waits on a group being formed. To read
-together, one of you reads out their eight-character invite code and the others
-enter it; whatever each person has read on their own is folded into the group's
-history rather than left behind. Everyone who joins becomes a reader the whole
-group can see, up to eight. From then on every device reads and writes the same
-rows, and changes appear on the other phones without a refresh.
+Then: **each of you creates your own account** with an email and a password.
+That is already enough to be saved — every account gets a store of its own, so
+nothing waits on a group being formed.
+
+**People, not codes.** Settings → People lists the other accounts: who they
+are, whether they are about, and how far through the catalog they have got. Add
+one and they get the request next time they open the app; tapping Add on
+somebody who has already asked you accepts instead, so two people adding each
+other at once end up friends rather than deadlocked.
+
+A friendship is **not** a reading group, and the panel says so rather than
+letting the word imply more than it does. It grants visibility — name, photo,
+presence, progress — and no access to anybody's readings or notes. `readings`
+is untouched by 0004, its policy still resolves through `is_pair_member()`, and
+the 286-entry pool is still one pool per pair. What "reading together" should
+mean is a separate decision, deliberately left to its own migration rather than
+smuggled in behind a button captioned Add friend.
+
+There is no search box, and that is a security property rather than an
+omission: a directory you can query by address is a way to test whether any
+given address has an account, and a way to walk a masked address back to the
+real one a character at a time. An email address is returned only to a friend;
+everybody else sees the name its owner published, or a hint like `e•••@gmail.com`
+if they never published one.
 
 **Nothing is dropped on the floor.** A write that has nowhere to go yet — no
 store on the server, no network, a failing request — sets a flag rather than
@@ -275,10 +293,17 @@ including a note still sitting in the text box.
 **How it is secured.** Every table has RLS on, and every policy resolves
 through `is_pair_member()`, which is `SECURITY DEFINER` so checking your own
 membership does not require reading a table you may not be allowed to read.
-Nothing is world-readable. The invite code is a bearer secret, so joining goes
-through a `SECURITY DEFINER` function rather than a select policy — the pairs
-table is never directly readable by a non-member, which means codes cannot be
-enumerated by listing.
+Nothing is world-readable.
+
+No table that matters is writable directly. `pair_members`, `friendships` and
+`presence` are granted `select` at most, and every mutation goes through a
+`SECURITY DEFINER` function — so joining, befriending and parting are always
+checked rather than asserted by the client. `presence` is granted nothing at
+all: only `people()` reads it.
+
+`pairs.invite_code` survives as dormant data, because dropping a `not null
+unique` column is a bigger migration than the feature deserves. Nothing renders
+it and nothing reads it after 0004.
 
 **Local stays authoritative.** Reads and writes hit `localStorage` first and
 synchronously; the remote is a second copy merged in when a session exists. A

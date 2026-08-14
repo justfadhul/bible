@@ -50,26 +50,30 @@ in the browser bundle, since Vite inlines every `VITE_`-prefixed variable at bui
 These are read at **build** time, so after adding or changing them you must redeploy; editing a
 variable alone changes nothing about the running site.
 
-Without them the app still deploys and works — it just runs local-only, and Settings → Sharing
+Without them the app still deploys and works — it just runs local-only, and Settings → Account
 says so.
 
-## 3. Run all three migrations
+## 3. Run all four migrations
 
 Supabase → SQL Editor → New query. Paste `supabase/migrations/0001_shared_history.sql`, Run; then
-`0002_real_readers.sql`, Run; then `0003_everything_saves.sql`, Run. All three are idempotent, and
-they must go in that order — 0003 refuses to run before 0002 rather than half-applying.
+`0002_real_readers.sql`, `0003_everything_saves.sql` and `0004_people_and_friends.sql`. All four are
+idempotent, and they must go in that order — each of the later ones refuses to run before its
+predecessor rather than half-applying.
 
 | | What it does | Without it |
 |---|---|---|
-| 0001 | The tables, the row-level security, the invite codes | Nothing syncs at all |
+| 0001 | The tables, the row-level security | Nothing syncs at all |
 | 0002 | The roster comes from the database, and each reader gets their own note | Somebody who joins never appears, and two people writing about the same passage overwrite each other |
 | 0003 | Every account gets a store of its own, so signing in is enough to be saved | Reading only reaches the database once you are in a group — on your own it lives on one phone |
+| 0004 | People and friends, replacing the invite code | Settings → People cannot list anybody, and there is no longer any other way in |
 
-The app still runs with any of them missing, and Settings → Sharing says which one it is.
+The app still runs with any of them missing, and Settings says which one it is.
 
-These are checked, not hoped over: `npm run check-sql` applies all three to a throwaway Postgres,
-re-runs them on top of themselves, and then asserts the behaviour — two accounts kept apart, a
-private history folded into a group on joining, an invented invite code refused.
+These are checked, not hoped over: `npm run check-sql` applies all four to a throwaway Postgres,
+re-runs them on top of themselves — which is also how a later migration silently reverting an
+earlier one's policy would be caught — and then asserts the behaviour: two accounts kept apart by
+RLS, a private history folded into a group on joining, a friendship granting no readings, an address
+withheld from a stranger, and a client unable to forge a friendship row directly.
 
 ## 4. Put the code in the email ← the one that bites
 
@@ -92,7 +96,8 @@ none; that whole class of "the link does nothing" problem does not exist here.
 3. Reopen, **Create an account**, and finish it — code included, if confirmation is on. You should
    land signed in with your name filled in from the address.
 4. Sign out and back in with the password. That path touches no email at all.
-5. Settings → Sharing → **Start a shared history**, then join from a second device with the code.
+5. Settings → **People** — the other accounts are listed there. Add one from a second device and
+   accept it from the first.
 
 If step 3 emails you a link and no digits, it is step 4 above — the template.
 

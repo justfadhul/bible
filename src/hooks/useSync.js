@@ -24,6 +24,10 @@ import {
   leavePair as rpcLeavePair,
   fetchRemoteState,
   fetchReaders,
+  listPeople,
+  addFriend as rpcAddFriend,
+  removeFriend as rpcRemoveFriend,
+  touchPresence,
   saveProfile,
   pushRemoteState,
   deleteRemoteReading,
@@ -39,6 +43,10 @@ const RETRY_MAX_MS = 30_000
 
 export function useSync({ state, onMerged }) {
   const [session, setSession] = useState(null)
+  // Read by callbacks that must not be rebuilt every time the session object
+  // is replaced by a token refresh.
+  const sessionRef = useRef(null)
+  sessionRef.current = session
   const [pair, setPair] = useState(null)
   // Read by the write path, which must not go stale between renders.
   const pairRef = useRef(null)
@@ -63,6 +71,14 @@ export function useSync({ state, onMerged }) {
   const [notice, setNotice] = useState(null)
   /** Set when pair_readers() could not answer — almost always a missing 0002. */
   const [rosterError, setRosterError] = useState(null)
+  /**
+   * The other accounts, and where you stand with each. `null` until the first
+   * answer, so the panel can tell "still loading" from "nobody else here yet" —
+   * a distinction that matters on the one screen whose whole job is to say who
+   * else exists.
+   */
+  const [people, setPeople] = useState(null)
+  const [peopleError, setPeopleError] = useState(null)
 
   // The hook reads the newest state without re-subscribing on every keystroke.
   const stateRef = useRef(state)
@@ -147,6 +163,52 @@ export function useSync({ state, onMerged }) {
       setStatus('error')
     })
   }, [session, loadPair])
+
+  /* ── people ── */
+  const refreshPeople = useCallback(async () => {
+    if (!sessionRef.current) return null
+    try {
+      const list = await listPeople()
+      setPeople(list)
+      setPeopleError(null)
+      return list
+    } catch (e) {
+      // Distinct from a sync error on purpose: the history can be syncing
+      // perfectly while the panel is stuck on a migration nobody has run.
+      setPeopleError(describe(e))
+      setPeople((prev) => prev ?? [])
+      return null
+    }
+  }, [])
+
+  // Signing in is what makes there be people to see, and stamping that you are
+  // about is the other half of the same moment.
+  useEffect(() => {
+    if (!session) {
+      setPeople(null)
+      setPeopleError(null)
+      return
+    }
+    touchPresence().catch(() => {})
+    refreshPeople()
+  }, [session, refreshPeople])
+
+  // Coming back to the app is the one moment worth re-reading it: somebody may
+  // have asked for you while it was in your pocket.
+  useEffect(() => {
+    if (!session) return
+    const onBack = () => {
+      if (document.visibilityState !== 'visible') return
+      touchPresence().catch(() => {})
+      refreshPeople()
+    }
+    document.addEventListener('visibilitychange', onBack)
+    window.addEventListener('focus', onBack)
+    return () => {
+      document.removeEventListener('visibilitychange', onBack)
+      window.removeEventListener('focus', onBack)
+    }
+  }, [session, refreshPeople])
 
   /* ── pull → merge → push ── */
   const sync = useCallback(
@@ -368,15 +430,51 @@ export function useSync({ state, onMerged }) {
         return null
       }
     },
+
+    /* ── people ── */
+    refreshPeople,
+    /**
+     * One gesture for asking and for answering, because from the tapping end
+     * they are the same thing: this person and I should be connected. The
+     * server works out which it was and says so, and the panel is refreshed
+     * from the server rather than guessed at locally — the answer depends on
+     * a row the other person may have written a second ago.
+     */
+    addFriend: async (userId) => {
+      const outcome = await rpcAddFriend(userId)
+      await refreshPeople()
+      return outcome
+    },
+    removeFriend: async (userId) => {
+      await rpcRemoveFriend(userId)
+      await refreshPeople()
+    },
   }
 
-  return { enabled: remoteConfigured, ready, session, pair, status, error, notice, rosterError, lastSyncedAt, push, ...actions }
+  return {
+    enabled: remoteConfigured,
+    ready,
+    session,
+    pair,
+    status,
+    error,
+    notice,
+    rosterError,
+    people,
+    peopleError,
+    lastSyncedAt,
+    push,
+    ...actions,
+  }
 }
 
 function describe(e) {
   const msg = e?.message ?? String(e)
   if (/Could not find the table/i.test(msg)) {
     return 'The database tables are missing — run supabase/migrations/0001_shared_history.sql in the SQL editor.'
+  }
+  if (/people|add_friend|remove_friend|friendships/i.test(msg)) {
+    return 'The people list is not in the database yet — run supabase/migrations/0004_people_and_friends.sql in the SQL editor.'
   }
   if (/pair_readers|profiles|notes_by/i.test(msg)) {
     return 'The reader list cannot be read from the database — run supabase/migrations/0002_real_readers.sql in the SQL editor, then Sync now.'

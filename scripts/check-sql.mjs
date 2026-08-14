@@ -16,7 +16,10 @@ import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+/** Applied before the accounts exist. */
 const MIGRATIONS = ['0001_shared_history.sql', '0002_real_readers.sql']
+/** Applied after them, so 0003's backfill and 0004's have something to find. */
+const LATER = ['0003_everything_saves.sql', '0004_people_and_friends.sql']
 const root = new URL('..', import.meta.url).pathname
 const PORT = 54329
 
@@ -94,15 +97,20 @@ try {
   // The accounts have to exist before 0003 for its backfill to have anything
   // to do — that is the migration path a real project is on.
   psql(join(root, 'scripts/pg-seed.sql'))
-  psql(join(root, 'supabase/migrations/0003_everything_saves.sql'))
-  console.log('  ✓ 0003_everything_saves.sql')
+  for (const m of LATER) {
+    psql(join(root, 'supabase/migrations', m))
+    console.log(`  ✓ ${m}`)
+  }
 
   // Twice, because "idempotent, so re-running is harmless" is a promise made
-  // at the top of every one of these files.
-  for (const m of [...MIGRATIONS, '0003_everything_saves.sql']) {
+  // at the top of every one of these files. Re-running them in order also
+  // catches a later migration redefining a policy an earlier one owns — which
+  // reverts silently and would otherwise only show up as a feature quietly
+  // ceasing to work weeks later.
+  for (const m of [...MIGRATIONS, ...LATER]) {
     psql(join(root, 'supabase/migrations', m))
   }
-  console.log('  ✓ all three re-run cleanly on top of themselves')
+  console.log(`  ✓ all ${MIGRATIONS.length + LATER.length} re-run cleanly on top of themselves`)
 
   psql(join(root, 'scripts/pg-checks.sql'), { notices: true })
   console.log('\n✓ the migrations apply and behave')

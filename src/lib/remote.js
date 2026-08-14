@@ -224,6 +224,61 @@ export async function fetchReaders() {
   }))
 }
 
+/* ── people ────────────────────────────────────────────────────────────── */
+
+/**
+ * Everyone else with an account, and where you stand with each of them.
+ *
+ * This is what replaced the eight-character invite code. There is deliberately
+ * no query parameter: a directory you can search by address is a way to test
+ * whether any given address has an account here, and a way to walk a masked
+ * address back to the real one a character at a time. The list is small and
+ * complete instead.
+ *
+ * `email` is null for anyone who is not a friend — `emailHint` is what the row
+ * falls back to when somebody has not published a name.
+ */
+export async function listPeople() {
+  need()
+  const { data, error } = await supabase.rpc('people')
+  if (error) throw error
+  return (data ?? []).map((p) => ({
+    id: p.user_id,
+    userId: p.user_id,
+    name: typeof p.display_name === 'string' ? p.display_name : '',
+    avatarUrl: typeof p.avatar_url === 'string' ? p.avatar_url : null,
+    email: p.email ?? null,
+    emailHint: p.email_hint ?? null,
+    relation: p.relation ?? 'none',
+    inMyGroup: Boolean(p.in_my_group),
+    seenAt: p.seen_at ?? null,
+    readCount: typeof p.read_count === 'number' ? p.read_count : null,
+  }))
+}
+
+/** Ask, or answer — the server decides which, so one tap does the right thing. */
+export async function addFriend(userId) {
+  need()
+  const { data, error } = await supabase.rpc('add_friend', { p_user: userId })
+  if (error) throw error
+  return data // 'requested' | 'friends'
+}
+
+/** Decline, cancel, or part ways — all the same row going. */
+export async function removeFriend(userId) {
+  need()
+  const { error } = await supabase.rpc('remove_friend', { p_user: userId })
+  if (error) throw error
+}
+
+/** "Here now". Throttled server-side, so calling it freely is fine. */
+export async function touchPresence() {
+  if (!supabase) return
+  const { error } = await supabase.rpc('touch_presence')
+  // A heartbeat is not worth an error message on somebody's screen.
+  if (error && !/touch_presence|PGRST202|schema cache/i.test(error.message ?? '')) throw error
+}
+
 /** Your own name and photo. The policy makes "your own" literal. */
 export async function saveProfile({ userId, name, avatarUrl }) {
   need()
@@ -269,6 +324,24 @@ export async function fetchRemoteState(pair) {
     .eq('pair_id', pair.pair_id)
   if (error) throw error
 
+  /**
+   * The day lock is read fresh rather than taken from the pair object we are
+   * holding, and that is not tidiness.
+   *
+   * `pair` is whatever ensure_pair() returned when the app opened, and nothing
+   * refreshes it — not the realtime callback, which passes that same frozen
+   * object back in. So on two phones left open since breakfast, one person
+   * spins, the other's device pulls the new reading but merges a lastSpinDate
+   * from hours ago, decides the day is unspent, and hands out a second spin.
+   * One a day is the whole idea of the app, so this is worth a second query.
+   */
+  const { data: fresh } = await supabase
+    .from('pairs')
+    .select('last_spin_date')
+    .eq('id', pair.pair_id)
+    .maybeSingle()
+  const lastSpinDate = fresh ? fresh.last_spin_date : pair.last_spin_date
+
   let readers = null
   let rosterError = null
   try {
@@ -284,7 +357,7 @@ export async function fetchRemoteState(pair) {
     version: emptyState().version,
     readers: readers ?? [],
     completed: [],
-    lastSpinDate: pair.last_spin_date,
+    lastSpinDate,
   })
 
   return {

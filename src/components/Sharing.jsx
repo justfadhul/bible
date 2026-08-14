@@ -1,8 +1,13 @@
 /**
- * Sharing: sign in with an email and password, then create or join a pair.
+ * Your account, and whether it is talking to the database.
  *
- * The whole panel is optional. With no session the app is exactly what it was
- * before — local, private, and fully working — so this never blocks reading.
+ * This used to be where you generated an eight-character code and read it out
+ * to somebody, or typed in theirs. That is gone: People.jsx lists the accounts
+ * that exist, and you add one. Nobody transcribes anything.
+ *
+ * What is left here is the account itself. The whole panel is still optional —
+ * with no project configured the app is exactly what it was, local and private
+ * and fully working — so this never blocks reading.
  */
 import { useState } from 'react'
 import { Alert, Badge, Button, Card, Field, Icon, ICONS } from './ui.jsx'
@@ -31,15 +36,13 @@ function Group({ header, footer, children, className = '' }) {
 }
 
 export default function Sharing({ sync }) {
-  const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [localError, setLocalError] = useState(null)
-  const [copied, setCopied] = useState(false)
 
   if (!sync.enabled) {
     return (
       <Group
-        header="Sharing"
+        header="Account"
         footer="Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env to turn this on. Without them the app runs entirely on this device, which is a perfectly good way to use it."
       >
         <p className="text-sm text-ink-2">No Supabase project is configured for this build.</p>
@@ -60,113 +63,43 @@ export default function Sharing({ sync }) {
     }
   }
 
-  const copyCode = async () => {
-    try {
-      await navigator.clipboard.writeText(sync.pair.invite_code)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1800)
-    } catch {
-      /* the code is on screen either way */
-    }
-  }
-
-  const joinProps = {
-    code,
-    setCode,
-    busy,
-    error: localError,
-    onSubmit: () => run(() => sync.joinPair(code.trim().toUpperCase())),
-  }
-
   /* ── signed out ── */
   if (!sync.session) {
     return (
       <Group
-        header="Sharing"
-        footer="One sign-in each, then one of you shares a group code. Until then everything stays on this device."
+        header="Account"
+        footer="One sign-in each. Everything you read is then saved to your account, and you can see who else is here."
       >
         <AuthForm sync={sync} />
       </Group>
     )
   }
 
-  /* ── signed in, no pair ── */
-  if (!sync.pair) {
-    return (
-      <>
-        <Group header="Sharing" footer={`Signed in as ${sync.session.user?.email ?? 'you'}.`}>
-          <div className="space-y-4">
-            {/* Signing in is meant to be enough to be saved: ensure_pair()
-                gives every account a store of its own. Landing here means the
-                database has no such function yet, and until it does, reading
-                stays on this device unless a group exists to hold it. */}
-            <Alert tone="quiet" icon={ICONS.warning}>
-              Your reading is saved on this device, but not yet to the database — run
-              supabase/migrations/0003_everything_saves.sql in the SQL editor. Starting or joining a
-              group below also gives it somewhere to go.
-            </Alert>
-            <div>
-              <p className="text-sm leading-relaxed text-ink-2">
-                Start a shared history and send the code to the others, or enter one you have been given.
-              </p>
-              <Button
-                className="mt-3 w-full"
-                disabled={busy}
-                busy={busy}
-                onClick={() => run(() => sync.createPair())}
-              >
-                Start a shared history
-              </Button>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <span className="h-px flex-1 bg-hairline" />
-              <span className="text-2xs tracking-[0.1em] uppercase text-ink-2">or</span>
-              <span className="h-px flex-1 bg-hairline" />
-            </div>
-
-            <JoinForm {...joinProps} />
-          </div>
-        </Group>
-
-        <Account sync={sync} busy={busy} run={run} />
-      </>
-    )
-  }
-
-  /* ── paired ── */
-  const waiting = sync.pair.member_count < 2
   const syncing = sync.status === 'syncing' || sync.status === 'connecting'
 
   return (
     <>
       <Group
-        header="Sharing"
-        footer={
-          waiting
-            ? 'Everything you read is already saved to your account. Give this code to the others when you want it shared — each signs in on their own device and enters it once, and brings their own history with them.'
-            : 'Every device reads and writes the same history. Changes appear on the others without a refresh.'
-        }
+        header="Account"
+        footer={`Signed in as ${sync.session.user?.email ?? 'you'}. Everything you read is saved to your account, so it survives this device.`}
       >
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="eyebrow">Invite code</p>
-            <p className="mt-1.5 font-mono text-2xl font-semibold tracking-[0.18em] tabular-nums">
-              {sync.pair.invite_code}
-            </p>
-          </div>
-          <Button variant="secondary" size="sm" onClick={copyCode}>
-            <Icon path={ICONS.copy} size={16} />
-            {copied ? 'Copied' : 'Copy'}
-          </Button>
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Badge tone={sync.status === 'error' ? 'neutral' : 'accent'}>
             {STATUS_TEXT[sync.status] ?? sync.status}
           </Badge>
-          <Badge>{waiting ? 'Just you so far' : `${sync.pair.member_count} readers signed in`}</Badge>
         </div>
+
+        {/* Signing in is meant to be enough to be saved. Landing on 'no-pair'
+            means the database has no ensure_pair() yet, and until it does,
+            reading stays on this device. */}
+        {sync.status === 'no-pair' && (
+          <div className="mt-3">
+            <Alert tone="quiet" icon={ICONS.warning}>
+              Your reading is saved on this device, but not yet to the database — run
+              supabase/migrations/0003_everything_saves.sql in the SQL editor.
+            </Alert>
+          </div>
+        )}
 
         {sync.error && (
           <div className="mt-3">
@@ -177,8 +110,8 @@ export default function Sharing({ sync }) {
         )}
 
         {/* Distinct from a sync error: the history is syncing fine, and only
-            the roster is stuck — which shows up as a person who joined and
-            never appeared, with nothing on screen to explain it. */}
+            the roster is stuck — which shows up as somebody who never appears,
+            with nothing on screen to explain it. */}
         {sync.rosterError && (
           <div className="mt-3">
             <Alert tone="quiet" icon={ICONS.warning}>
@@ -187,82 +120,27 @@ export default function Sharing({ sync }) {
           </div>
         )}
 
-        <div className="mt-4 flex gap-2.5">
-          <Button
-            variant="secondary"
-            className="flex-1"
-            disabled={syncing}
-            busy={syncing}
-            onClick={sync.resync}
-          >
-            {syncing ? 'Syncing' : 'Sync now'}
-          </Button>
-          {/* Nothing to leave while it is only you — that is your own store,
-              and "leave" would read as a way to throw it away. */}
-          {!waiting && (
-            <Button
-              variant="secondary"
-              className="flex-1"
-              disabled={busy || syncing}
-              busy={busy}
-              onClick={() => run(sync.leavePair)}
-            >
-              Leave group
-            </Button>
-          )}
-        </div>
-      </Group>
+        {localError && (
+          <div className="mt-3">
+            <Alert tone="quiet" icon={ICONS.warning}>
+              {localError}
+            </Alert>
+          </div>
+        )}
 
-      {/* Everyone signed in already has a store, so there is no longer a
-          "signed in but unpaired" screen to hold the join box — and without
-          this, the second person to sign up would have nowhere to type the
-          code they were sent. */}
-      {waiting && (
-        <Group
-          header="Join a group"
-          footer="Whatever you have read so far comes with you — it is folded into the group's history rather than left behind."
+        <Button
+          variant="secondary"
+          className="mt-4 w-full"
+          disabled={syncing}
+          busy={syncing}
+          onClick={sync.resync}
         >
-          <JoinForm {...joinProps} />
-        </Group>
-      )}
+          {syncing ? 'Syncing' : 'Sync now'}
+        </Button>
+      </Group>
 
       <Account sync={sync} busy={busy} run={run} />
     </>
-  )
-}
-
-/** The invite code box. Shown both to an unpaired account and to a solo one. */
-function JoinForm({ code, setCode, busy, error, onSubmit }) {
-  return (
-    <form
-      className="space-y-3"
-      onSubmit={(e) => {
-        e.preventDefault()
-        onSubmit()
-      }}
-    >
-      <Field
-        id="join-code"
-        label="Invite code"
-        value={code}
-        onChange={(e) => setCode(e.target.value.toUpperCase())}
-        placeholder="XXXXXXXX"
-        maxLength={8}
-        autoCapitalize="characters"
-        autoComplete="off"
-        spellCheck={false}
-        error={error}
-      />
-      <Button
-        type="submit"
-        variant="secondary"
-        className="w-full"
-        disabled={busy || code.trim().length < 4}
-        busy={busy}
-      >
-        Join with a code
-      </Button>
-    </form>
   )
 }
 
@@ -277,7 +155,7 @@ function Account({ sync, busy, run }) {
   const [done, setDone] = useState(false)
 
   return (
-    <Group header="Account" footer={`Signed in as ${sync.session.user?.email ?? 'you'}.`}>
+    <Group header="Password" footer={`Signed in as ${sync.session.user?.email ?? 'you'}.`}>
       <div className="space-y-3">
         {done && (
           <Alert icon={ICONS.check}>Password changed. It is what you will sign in with from now on.</Alert>
