@@ -248,18 +248,29 @@ security. The service-role key bypasses RLS entirely and must never appear in
 `.env`, in the bundle, or in this repo.
 
 **Run the migrations once**, in order: open Supabase → SQL Editor → New query, paste
-`supabase/migrations/0001_shared_history.sql`, Run; then the same for
-`0002_real_readers.sql`. Both are idempotent, so re-running after a change to either file is safe
-and only replaces what moved. 0002 is what makes the roster come from the database and gives each
-reader their own note — without it the app still runs, and Settings → Sharing says which one is
-missing.
+`supabase/migrations/0001_shared_history.sql`, Run; then `0002_real_readers.sql`; then
+`0003_everything_saves.sql`. All three are idempotent, so re-running after a change to any of them
+is safe and only replaces what moved. 0002 is what makes the roster come from the database and
+gives each reader their own note; 0003 is what makes signing in enough to be saved. Without either,
+the app still runs, and Settings → Sharing says which one is missing.
+
+`npm run check-sql` applies all three to a throwaway Postgres and asserts what they do, so nothing
+here is SQL that has only ever been read. It skips itself where no local Postgres is installed.
 
 Then, in Settings → Sharing: **each of you creates your own account** with an
-email and a password, one of you starts a shared history and reads out the
-eight-character invite code, and the others enter it. Everyone who joins
-becomes a reader the whole group can see, up to eight. From then on every
-device reads and writes the same rows, and changes appear on the other phones
-without a refresh.
+email and a password. That is already enough to be saved — every account gets
+a store of its own, so nothing waits on a group being formed. To read
+together, one of you reads out their eight-character invite code and the others
+enter it; whatever each person has read on their own is folded into the group's
+history rather than left behind. Everyone who joins becomes a reader the whole
+group can see, up to eight. From then on every device reads and writes the same
+rows, and changes appear on the other phones without a refresh.
+
+**Nothing is dropped on the floor.** A write that has nowhere to go yet — no
+store on the server, no network, a failing request — sets a flag rather than
+vanishing, and is retried with a backoff until it lands. Backgrounding the app
+or closing the tab flushes immediately instead of waiting out the debounce,
+including a note still sitting in the text box.
 
 **How it is secured.** Every table has RLS on, and every policy resolves
 through `is_pair_member()`, which is `SECURITY DEFINER` so checking your own

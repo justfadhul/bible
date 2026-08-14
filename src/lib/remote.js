@@ -148,6 +148,34 @@ export async function myPair() {
   return row ?? null
 }
 
+/** PostgREST's "that function is not in the schema cache" — an unrun migration. */
+const isMissingFunction = (e) =>
+  e?.code === 'PGRST202' || /Could not find the function|schema cache/i.test(e?.message ?? '')
+
+/**
+ * The pair to read and write, creating a private one if there is none.
+ *
+ * This is what makes signing in enough to be saved. Before it, the database
+ * only held a reading if you had created or joined a group, so an account on
+ * its own was an account with nowhere to write — and everything stayed on one
+ * phone while the app looked, in every respect, like it was syncing.
+ *
+ * A project that has not run migration 0003 has no ensure_pair(), and falls
+ * back to the old read-only lookup rather than failing to sign in. Progress
+ * then still only saves inside a group, which is exactly what it did before;
+ * Settings → Sharing says which migration is missing.
+ */
+export async function ensurePair() {
+  need()
+  const { data, error } = await supabase.rpc('ensure_pair')
+  if (error) {
+    if (isMissingFunction(error)) return myPair()
+    throw error
+  }
+  const row = Array.isArray(data) ? data[0] : data
+  return row ?? null
+}
+
 export async function createPair(name) {
   const { data, error } = await supabase.rpc('create_pair', { p_name: name ?? null })
   if (error) throw error

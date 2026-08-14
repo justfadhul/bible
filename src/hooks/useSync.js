@@ -18,7 +18,7 @@ import {
   verifyCode,
   updatePassword,
   signOut as remoteSignOut,
-  myPair,
+  ensurePair,
   createPair as rpcCreatePair,
   joinPair as rpcJoinPair,
   leavePair as rpcLeavePair,
@@ -33,10 +33,16 @@ import {
 import { mergeStates } from '../lib/merge.js'
 
 const PUSH_DEBOUNCE_MS = 900
+/** Retry backoff for a write that failed: 2s, 4s, 8s… capped, and never given up on. */
+const RETRY_BASE_MS = 2000
+const RETRY_MAX_MS = 30_000
 
 export function useSync({ state, onMerged }) {
   const [session, setSession] = useState(null)
   const [pair, setPair] = useState(null)
+  // Read by the write path, which must not go stale between renders.
+  const pairRef = useRef(null)
+  pairRef.current = pair
   const [status, setStatus] = useState(remoteConfigured ? 'connecting' : 'off')
   const [error, setError] = useState(null)
   const [lastSyncedAt, setLastSyncedAt] = useState(null)
@@ -65,6 +71,33 @@ export function useSync({ state, onMerged }) {
   mergedRef.current = onMerged
   const pushTimer = useRef(null)
   const firstSync = useRef(true)
+  /**
+   * A local edit the database has not accepted yet.
+   *
+   * Every write used to be fire-and-forget: no pair meant the edit was dropped
+   * on the floor, and a failed request meant the same with an error message
+   * over it. Neither ever came back. So an edit now sets this flag and only
+   * clears it when the server has taken it — which makes a failure something
+   * to retry rather than something to lose.
+   */
+  const dirty = useRef(false)
+  const attempts = useRef(0)
+  const retryTimer = useRef(null)
+  const flushing = useRef(false)
+  const flushRef = useRef(null)
+
+  /**
+   * Try the outstanding write again, backing off: 2s, 4s, 8s… to half a
+   * minute, and then every half minute for as long as it takes. There is no
+   * attempt limit on purpose — the alternative to trying again is losing what
+   * somebody read.
+   */
+  const retryLater = useCallback(() => {
+    if (!dirty.current) return
+    clearTimeout(retryTimer.current)
+    const wait = Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** attempts.current++)
+    retryTimer.current = setTimeout(() => flushRef.current?.(), wait)
+  }, [])
 
   /* ── session ── */
   useEffect(() => {
@@ -89,9 +122,19 @@ export function useSync({ state, onMerged }) {
   }, [])
 
   /* ── pair ── */
+  /**
+   * Being signed in is enough to be saved.
+   *
+   * ensure_pair() hands back the group you are in, and makes you a private one
+   * if you are in none — so there is somewhere to write from the moment you
+   * have an account, rather than from the moment somebody gets round to
+   * sharing a code. On a project that has not run migration 0003 this falls
+   * back to the old lookup and can still answer null; the app keeps working
+   * locally and Sharing says what is missing.
+   */
   const loadPair = useCallback(async () => {
     if (!session) return null
-    const p = await myPair()
+    const p = await ensurePair()
     setPair(p)
     setStatus(p ? 'connecting' : 'no-pair')
     return p
@@ -120,15 +163,22 @@ export function useSync({ state, onMerged }) {
         mergedRef.current?.(merged)
         stateRef.current = merged
         await pushRemoteState(p, merged)
+        // The merged copy contains whatever was waiting, so this settles it.
+        dirty.current = false
+        attempts.current = 0
+        clearTimeout(retryTimer.current)
         setLastSyncedAt(Date.now())
         setError(null)
         setStatus('synced')
       } catch (e) {
         setError(describe(e))
         setStatus('error')
+        // A sync that fails is also a push that failed, and there may be edits
+        // riding on it that have never reached the server.
+        retryLater()
       }
     },
-    [pair],
+    [pair, retryLater],
   )
 
   useEffect(() => {
@@ -143,28 +193,111 @@ export function useSync({ state, onMerged }) {
   }, [pair, sync])
 
   /* ── local edits ── */
+  /**
+   * Sends whatever is outstanding, and keeps trying until it lands.
+   *
+   * Deliberately not tied to a particular edit: the state is a whole document,
+   * so the newest copy supersedes every earlier one and a retry is always just
+   * "push what we have now". That is also why a failure can back off politely
+   * without a queue building up behind it.
+   */
+  const flush = useCallback(async () => {
+    const p = pairRef.current
+    if (!p || !dirty.current || flushing.current) return
+    flushing.current = true
+    clearTimeout(pushTimer.current)
+    clearTimeout(retryTimer.current)
+    retryTimer.current = null
+    const sending = stateRef.current
+    try {
+      setStatus('syncing')
+      await pushRemoteState(p, sending)
+      // Only clear the flag if nothing was edited while this was in flight —
+      // otherwise the newer copy would be marked saved without ever going.
+      if (stateRef.current === sending) dirty.current = false
+      attempts.current = 0
+      setLastSyncedAt(Date.now())
+      setError(null)
+      setStatus('synced')
+    } catch (e) {
+      setError(describe(e))
+      setStatus('error')
+      retryLater()
+    } finally {
+      flushing.current = false
+    }
+    // Edited again mid-flight: send the newer copy rather than leaving it to
+    // whatever happens to touch the app next.
+    if (dirty.current && !retryTimer.current) {
+      pushTimer.current = setTimeout(() => flush(), PUSH_DEBOUNCE_MS)
+    }
+  }, [retryLater])
+
+  flushRef.current = flush
+
   const push = useCallback(
     (next) => {
       stateRef.current = next
-      if (!pair) return
+      dirty.current = true
       clearTimeout(pushTimer.current)
-      pushTimer.current = setTimeout(() => {
-        pushRemoteState(pair, next)
-          .then(() => {
-            setLastSyncedAt(Date.now())
-            setError(null)
-            setStatus('synced')
-          })
-          .catch((e) => {
-            setError(describe(e))
-            setStatus('error')
-          })
-      }, PUSH_DEBOUNCE_MS)
+      // With no pair yet the edit is not dropped, only held: the flag stays
+      // raised, and the first sync after a pair appears carries it up.
+      if (!pairRef.current) return
+      pushTimer.current = setTimeout(() => flush(), PUSH_DEBOUNCE_MS)
     },
-    [pair],
+    [flush],
   )
 
-  useEffect(() => () => clearTimeout(pushTimer.current), [])
+  // A pair arriving carries held edits up by itself: the effect above runs a
+  // full pull → merge → push, and the merge is a superset of anything waiting.
+  // Flushing here as well would race it, and the loser would be a push of the
+  // pre-merge copy — which is how somebody else's tick disappears for a while.
+
+  /**
+   * The phone going away is the likeliest moment to lose a write, and the
+   * debounce is exactly the wrong thing to be waiting on then. Backgrounding
+   * an app on iOS can freeze the tab within a beat of `hidden`, so that one
+   * flushes immediately rather than on the next tick.
+   */
+  useEffect(() => {
+    /**
+     * Twice, deliberately. The card holding a half-typed note listens for the
+     * same event and commits its draft, and DOM listeners run in registration
+     * order — which re-registering puts us on either side of. The microtask
+     * runs after every listener for this dispatch and still inside the same
+     * turn, so whatever the card just committed goes with this flush rather
+     * than waiting for a debounce that a frozen tab will never reach.
+     */
+    const leaving = () => {
+      flush()
+      queueMicrotask(() => flush())
+    }
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') leaving()
+    }
+    const onBack = () => {
+      attempts.current = 0
+      flush()
+    }
+    document.addEventListener('visibilitychange', onHide)
+    window.addEventListener('pagehide', leaving)
+    window.addEventListener('online', onBack)
+    window.addEventListener('focus', onBack)
+    return () => {
+      document.removeEventListener('visibilitychange', onHide)
+      window.removeEventListener('pagehide', leaving)
+      window.removeEventListener('online', onBack)
+      window.removeEventListener('focus', onBack)
+    }
+  }, [flush])
+
+  useEffect(
+    () => () => {
+      clearTimeout(pushTimer.current)
+      clearTimeout(retryTimer.current)
+    },
+    [],
+  )
 
   /* ── actions ── */
   const actions = {
@@ -188,10 +321,19 @@ export function useSync({ state, onMerged }) {
       firstSync.current = false // the existing shared history wins on a join
       await loadPair()
     },
+    /**
+     * Leaving a group is not leaving the app. The shared history stays with
+     * the people still in it; you get a private store of your own back, and
+     * this device's copy is pushed into it — so what you have read is still
+     * saved, it is just no longer saved with them.
+     */
     leavePair: async () => {
       if (pair) await rpcLeavePair(pair.pair_id)
       setPair(null)
-      setStatus('no-pair')
+      setStatus('connecting')
+      firstSync.current = true
+      dirty.current = true
+      await loadPair()
     },
     /** Undo has to delete remotely — a union merge cannot express a removal. */
     forget: async (entryId) => {

@@ -63,27 +63,59 @@ export default function TodayCard({
     setDraft(row?.notesBy?.[meId] ?? '')
   }, [entry.id, meId, row?.notesBy?.[meId]])
 
+  // Notes are local while typing and flushed on a short debounce, so the card
+  // stays responsive and storage is not written on every keystroke.
+  const pending = useRef(null)
+  const commitRef = useRef(null)
+
+  // Leaving the card — another tab, or the day rolling over — is the same
+  // problem as leaving the app: whatever is still in the debounce goes now.
   useEffect(
     () => () => {
+      commitRef.current?.()
       clearTimeout(debounce.current)
       clearTimeout(savedFor.current)
     },
     [],
   )
 
-  // Notes are local while typing and flushed on a short debounce, so the card
-  // stays responsive and storage is not written on every keystroke.
+  const commitDraft = () => {
+    if (pending.current === null) return
+    const value = pending.current
+    pending.current = null
+    clearTimeout(debounce.current)
+    onNotes(value)
+    setSaved('done')
+    clearTimeout(savedFor.current)
+    savedFor.current = setTimeout(() => setSaved('idle'), 1800)
+  }
+  commitRef.current = commitDraft
+
   const onDraft = (value) => {
     setDraft(value)
     setSaved('pending')
+    pending.current = value
     clearTimeout(debounce.current)
-    debounce.current = setTimeout(() => {
-      onNotes(value)
-      setSaved('done')
-      clearTimeout(savedFor.current)
-      savedFor.current = setTimeout(() => setSaved('idle'), 1800)
-    }, 350)
+    debounce.current = setTimeout(commitDraft, 350)
   }
+
+  /**
+   * A third of a second is nothing to type through and everything to lose a
+   * sentence in. Backgrounding the app, closing the tab or switching away
+   * mid-thought all land inside that window, so they commit the draft
+   * immediately rather than letting the timer decide whether it survives.
+   */
+  useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') commitDraft()
+    }
+    document.addEventListener('visibilitychange', onHide)
+    window.addEventListener('pagehide', commitDraft)
+    return () => {
+      document.removeEventListener('visibilitychange', onHide)
+      window.removeEventListener('pagehide', commitDraft)
+    }
+  })
 
   // Move focus to the result so a keyboard or screen-reader user lands on it.
   useEffect(() => {

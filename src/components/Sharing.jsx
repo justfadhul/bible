@@ -16,7 +16,7 @@ const STATUS_TEXT = {
   syncing: 'Syncing…',
   synced: 'Up to date',
   'signed-out': 'Signed out',
-  'no-pair': 'Signed in, not paired yet',
+  'no-pair': 'Signed in, nowhere to save yet',
   error: 'Sync problem',
 }
 
@@ -70,6 +70,14 @@ export default function Sharing({ sync }) {
     }
   }
 
+  const joinProps = {
+    code,
+    setCode,
+    busy,
+    error: localError,
+    onSubmit: () => run(() => sync.joinPair(code.trim().toUpperCase())),
+  }
+
   /* ── signed out ── */
   if (!sync.session) {
     return (
@@ -88,6 +96,15 @@ export default function Sharing({ sync }) {
       <>
         <Group header="Sharing" footer={`Signed in as ${sync.session.user?.email ?? 'you'}.`}>
           <div className="space-y-4">
+            {/* Signing in is meant to be enough to be saved: ensure_pair()
+                gives every account a store of its own. Landing here means the
+                database has no such function yet, and until it does, reading
+                stays on this device unless a group exists to hold it. */}
+            <Alert tone="quiet" icon={ICONS.warning}>
+              Your reading is saved on this device, but not yet to the database — run
+              supabase/migrations/0003_everything_saves.sql in the SQL editor. Starting or joining a
+              group below also gives it somewhere to go.
+            </Alert>
             <div>
               <p className="text-sm leading-relaxed text-ink-2">
                 Start a shared history and send the code to the others, or enter one you have been given.
@@ -108,35 +125,7 @@ export default function Sharing({ sync }) {
               <span className="h-px flex-1 bg-hairline" />
             </div>
 
-            <form
-              className="space-y-3"
-              onSubmit={(e) => {
-                e.preventDefault()
-                run(() => sync.joinPair(code.trim().toUpperCase()))
-              }}
-            >
-              <Field
-                id="join-code"
-                label="Invite code"
-                value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                placeholder="XXXXXXXX"
-                maxLength={8}
-                autoCapitalize="characters"
-                autoComplete="off"
-                spellCheck={false}
-                error={localError}
-              />
-              <Button
-                type="submit"
-                variant="secondary"
-                className="w-full"
-                disabled={busy || code.trim().length < 4}
-                busy={busy}
-              >
-                Join with a code
-              </Button>
-            </form>
+            <JoinForm {...joinProps} />
           </div>
         </Group>
 
@@ -155,7 +144,7 @@ export default function Sharing({ sync }) {
         header="Sharing"
         footer={
           waiting
-            ? 'Give this code to the others. Each signs in on their own device and enters it once.'
+            ? 'Everything you read is already saved to your account. Give this code to the others when you want it shared — each signs in on their own device and enters it once, and brings their own history with them.'
             : 'Every device reads and writes the same history. Changes appear on the others without a refresh.'
         }
       >
@@ -176,11 +165,7 @@ export default function Sharing({ sync }) {
           <Badge tone={sync.status === 'error' ? 'neutral' : 'accent'}>
             {STATUS_TEXT[sync.status] ?? sync.status}
           </Badge>
-          <Badge>
-            {waiting
-              ? 'Waiting for the second reader'
-              : `${sync.pair.member_count} readers signed in`}
-          </Badge>
+          <Badge>{waiting ? 'Just you so far' : `${sync.pair.member_count} readers signed in`}</Badge>
         </div>
 
         {sync.error && (
@@ -212,20 +197,72 @@ export default function Sharing({ sync }) {
           >
             {syncing ? 'Syncing' : 'Sync now'}
           </Button>
-          <Button
-            variant="secondary"
-            className="flex-1"
-            disabled={busy || syncing}
-            busy={busy}
-            onClick={() => run(sync.leavePair)}
-          >
-            Leave pair
-          </Button>
+          {/* Nothing to leave while it is only you — that is your own store,
+              and "leave" would read as a way to throw it away. */}
+          {!waiting && (
+            <Button
+              variant="secondary"
+              className="flex-1"
+              disabled={busy || syncing}
+              busy={busy}
+              onClick={() => run(sync.leavePair)}
+            >
+              Leave group
+            </Button>
+          )}
         </div>
       </Group>
 
+      {/* Everyone signed in already has a store, so there is no longer a
+          "signed in but unpaired" screen to hold the join box — and without
+          this, the second person to sign up would have nowhere to type the
+          code they were sent. */}
+      {waiting && (
+        <Group
+          header="Join a group"
+          footer="Whatever you have read so far comes with you — it is folded into the group's history rather than left behind."
+        >
+          <JoinForm {...joinProps} />
+        </Group>
+      )}
+
       <Account sync={sync} busy={busy} run={run} />
     </>
+  )
+}
+
+/** The invite code box. Shown both to an unpaired account and to a solo one. */
+function JoinForm({ code, setCode, busy, error, onSubmit }) {
+  return (
+    <form
+      className="space-y-3"
+      onSubmit={(e) => {
+        e.preventDefault()
+        onSubmit()
+      }}
+    >
+      <Field
+        id="join-code"
+        label="Invite code"
+        value={code}
+        onChange={(e) => setCode(e.target.value.toUpperCase())}
+        placeholder="XXXXXXXX"
+        maxLength={8}
+        autoCapitalize="characters"
+        autoComplete="off"
+        spellCheck={false}
+        error={error}
+      />
+      <Button
+        type="submit"
+        variant="secondary"
+        className="w-full"
+        disabled={busy || code.trim().length < 4}
+        busy={busy}
+      >
+        Join with a code
+      </Button>
+    </form>
   )
 }
 
