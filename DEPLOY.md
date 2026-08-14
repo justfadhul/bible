@@ -53,14 +53,23 @@ variable alone changes nothing about the running site.
 Without them the app still deploys and works — it just runs local-only, and Settings → Sharing
 says so.
 
-## 3. Run both migrations
+## 3. Run all three migrations
 
 Supabase → SQL Editor → New query. Paste `supabase/migrations/0001_shared_history.sql`, Run; then
-`0002_real_readers.sql`, Run. Both are idempotent.
+`0002_real_readers.sql`, Run; then `0003_everything_saves.sql`, Run. All three are idempotent, and
+they must go in that order — 0003 refuses to run before 0002 rather than half-applying.
 
-0002 is the one that makes the reader list come from the database rather than from whatever another
-phone last uploaded, and gives each reader their own note. Without it the app still works — Settings
-→ Sharing will tell you which migration is missing.
+| | What it does | Without it |
+|---|---|---|
+| 0001 | The tables, the row-level security, the invite codes | Nothing syncs at all |
+| 0002 | The roster comes from the database, and each reader gets their own note | Somebody who joins never appears, and two people writing about the same passage overwrite each other |
+| 0003 | Every account gets a store of its own, so signing in is enough to be saved | Reading only reaches the database once you are in a group — on your own it lives on one phone |
+
+The app still runs with any of them missing, and Settings → Sharing says which one it is.
+
+These are checked, not hoped over: `npm run check-sql` applies all three to a throwaway Postgres,
+re-runs them on top of themselves, and then asserts the behaviour — two accounts kept apart, a
+private history folded into a group on joining, an invented invite code refused.
 
 ## 4. Put the code in the email ← the one that bites
 
