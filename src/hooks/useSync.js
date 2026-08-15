@@ -479,8 +479,11 @@ function describe(e) {
   if (/pair_readers|profiles|notes_by/i.test(msg)) {
     return 'The reader list cannot be read from the database — run supabase/migrations/0002_real_readers.sql in the SQL editor, then Sync now.'
   }
-  if (/Failed to fetch|NetworkError|fetch failed/i.test(msg)) {
-    return 'Cannot reach Supabase. Your history is still saved on this device.'
+  // "Load failed" is Safari's wording for a fetch that never completed, and it
+  // was reaching people verbatim — a phrase that means nothing on a phone with
+  // one bar of signal, which is exactly when it appears.
+  if (/Failed to fetch|NetworkError|fetch failed|Load failed|network ?error/i.test(msg)) {
+    return 'Could not reach the server just now. Everything is still saved on this device.'
   }
   // The message the function raised is the useful part; match on it rather
   // than the status, so an older migration still reads properly.

@@ -283,9 +283,13 @@ export async function touchPresence() {
 export async function saveProfile({ userId, name, avatarUrl }) {
   need()
   if (!userId) return
-  const { error } = await supabase
-    .from('profiles')
-    .upsert({ user_id: userId, display_name: name ?? '', avatar_url: avatarUrl ?? null }, { onConflict: 'user_id' })
+  // Omitting avatarUrl leaves the stored one alone rather than clearing it —
+  // an upsert only SETs the columns it is given. That is what lets a name be
+  // published while a photo is still waiting to upload, without the wait
+  // costing you the photo you already had.
+  const row = { user_id: userId, display_name: name ?? '' }
+  if (avatarUrl !== undefined) row.avatar_url = avatarUrl
+  const { error } = await supabase.from('profiles').upsert(row, { onConflict: 'user_id' })
   if (error) throw error
 }
 

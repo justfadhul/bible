@@ -80,7 +80,27 @@ function takeRoster(local, remote) {
   const localOnly = (local.readers ?? []).filter(
     (r) => !r.userId && !server.some((x) => x.id === r.id),
   )
-  return [...server, ...localOnly]
+
+  /**
+   * One exception to taking the roster whole: a photo that has not uploaded.
+   *
+   * A `data:` avatar is a picture somebody chose on this device while the
+   * network was down, and it is also the queue — App.jsx retries whatever it
+   * finds sitting in that form. The server cannot know about it yet, so taking
+   * its answer verbatim would replace the picture with null, and the retry
+   * would have nothing left to find. The photo would be gone on the next
+   * reload, having never gone anywhere.
+   */
+  const pending = new Map(
+    (local.readers ?? [])
+      .filter((r) => r.avatarUrl?.startsWith('data:'))
+      .map((r) => [r.id, r.avatarUrl]),
+  )
+
+  return [
+    ...server.map((r) => (r.avatarUrl ? r : { ...r, avatarUrl: pending.get(r.id) ?? r.avatarUrl })),
+    ...localOnly,
+  ]
 }
 
 /**

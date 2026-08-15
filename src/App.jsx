@@ -17,6 +17,7 @@ import { getState, saveState, clearState, emptyState } from './lib/storage.js'
 import { useSync } from './hooks/useSync.js'
 import { getTheme, saveTheme, applyTheme, resolvedTheme } from './lib/theme.js'
 import { nameFromEmail } from './lib/readers.js'
+import { dataUrlToBlob } from './lib/image.js'
 import { APP_NAME } from './lib/brand.js'
 import * as haptics from './lib/haptics.js'
 import {
@@ -270,11 +271,72 @@ export default function App() {
       if (!reader?.userId || reader.userId !== syncRef.current?.session?.user?.id) return
       clearTimeout(profileTimer.current)
       profileTimer.current = setTimeout(() => {
-        syncRef.current?.saveProfile?.({ name: reader.name, avatarUrl: reader.avatarUrl })
+        // A `data:` avatar has not uploaded yet, and it is no use to anybody
+        // else — it is a base64 blob every other reader would download with
+        // the roster and could not otherwise use. Publish the name now and the
+        // photo when it has a real URL.
+        const avatarUrl = reader.avatarUrl?.startsWith('data:') ? undefined : reader.avatarUrl
+        syncRef.current?.saveProfile?.({ name: reader.name, ...(avatarUrl === undefined ? {} : { avatarUrl }) })
       }, 700)
     },
     [],
   )
+
+  /**
+   * A photo chosen while the connection was down.
+   *
+   * The upload is the one write that was still fire-and-forget: it failed, said
+   * so once, and never tried again — so the photo stayed on the phone that
+   * chose it and nobody else ever saw it. There is no queue to build, though,
+   * because a failed upload leaves the picture in the local copy as a `data:`
+   * URL and a successful one replaces it with an https one. The local copy IS
+   * the queue, and it survives a reload for free.
+   *
+   * Retried on mount and whenever the app comes back or the network does, with
+   * a guard so a slow upload cannot be started twice.
+   */
+  const stateRef = useRef(state)
+  stateRef.current = state
+  const uploadingAvatar = useRef(false)
+  const myAccountId = sync.session?.user?.id ?? null
+  const pendingAvatar = state.readers.find(
+    (r) => r.userId && r.userId === myAccountId && r.avatarUrl?.startsWith('data:'),
+  )?.avatarUrl
+
+  useEffect(() => {
+    if (!pendingAvatar || !myAccountId) return
+    let cancelled = false
+
+    const attempt = async () => {
+      if (uploadingAvatar.current) return
+      uploadingAvatar.current = true
+      try {
+        const url = await syncRef.current?.uploadAvatar(dataUrlToBlob(pendingAvatar), myAccountId)
+        if (cancelled || !url) return
+        const me = stateRef.current.readers.find((r) => r.userId === myAccountId)
+        // Only if nothing has replaced it in the meantime — somebody choosing a
+        // second photo mid-upload must not have the first one land on top.
+        if (me?.avatarUrl === pendingAvatar) {
+          const next = updateReader(stateRef.current, me.id, { avatarUrl: url })
+          commit(next)
+          publishProfile(next.readers.find((r) => r.id === me.id))
+        }
+      } catch {
+        /* still a data: URL, so this runs again next time something wakes it */
+      } finally {
+        uploadingAvatar.current = false
+      }
+    }
+
+    attempt()
+    window.addEventListener('online', attempt)
+    window.addEventListener('focus', attempt)
+    return () => {
+      cancelled = true
+      window.removeEventListener('online', attempt)
+      window.removeEventListener('focus', attempt)
+    }
+  }, [pendingAvatar, myAccountId, commit, publishProfile])
 
   const [hapticsOn, setHapticsOn] = useState(haptics.hapticsEnabled)
   const hapticsPrefs = {

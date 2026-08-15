@@ -18,6 +18,7 @@
  */
 import { useRef, useState } from 'react'
 import { Alert, Avatar, Button, Card, Field, Icon, ICONS, Spinner } from './ui.jsx'
+import { describeSyncError } from '../hooks/useSync.js'
 import { displayName, nameFromEmail, NAME_SUGGESTIONS } from '../lib/readers.js'
 import { fileToAvatarDataUrl, dataUrlToBlob } from '../lib/image.js'
 import { MAX_READERS } from '../lib/storage.js'
@@ -205,7 +206,9 @@ export default function Readers({ state, sync, onUpdate, onRemove }) {
           url = await sync.uploadAvatar(dataUrlToBlob(dataUrl), reader.userId)
         } catch (e) {
           // Keep the local copy rather than losing the photo over a bad upload.
-          setError(`Saved on this device, but the upload failed: ${e.message}`)
+          // It stays a data: URL, which is what the retry in App.jsx looks for,
+          // so this is a delay rather than something the reader must redo.
+          setError(`${describeSyncError(e)} Your photo is saved on this phone and will upload by itself.`)
         }
       }
       onUpdate(reader.id, { avatarUrl: url })
